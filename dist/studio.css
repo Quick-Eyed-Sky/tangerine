@@ -258,7 +258,7 @@ dialog { font-size:14px; }
 }
 @media(max-width:740px) {
   .mobile-nav { display:grid; position:fixed; z-index:30; bottom:0; left:0; right:0; grid-template-columns:repeat(3,1fr); gap:4px; padding:7px 10px max(9px,env(safe-area-inset-bottom)); background:#1b1510f5; border-top:1px solid var(--line-2); backdrop-filter:blur(18px); }
-  .mobile-nav button { display:flex; align-items:center; justify-content:center; gap:7px; min-height:45px; border-radius:5px; color:var(--muted); font-size:12px; }
+  .mobile-nav button { display:flex; align-items:center; justify-content:center; gap:7px; min-height:45px; border-radius:5px; color:var(--muted); font-size:12px; white-space:nowrap; }
   .mobile-nav button>span { font-size:17px; }
   .mobile-nav button[aria-current] { color:var(--accent-light); background:#332115; }
   .toast { bottom:88px; }

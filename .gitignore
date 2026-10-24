@@ -8,3 +8,7 @@ release/
 
 # Audio recorded locally on this Mac
 Recordings/
+
+# Local notes and Python caches
+Sol-preview-guide.md
+__pycache__/
