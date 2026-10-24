@@ -89,6 +89,10 @@ See [PUBLISHING.md](PUBLISHING.md) for release and GitHub Pages instructions.
 
 Jean-Pascal — **[Quick-Eyed Sky](https://www.youtube.com/@QuickEyedSky)** on YouTube, **[QES](https://huggingface.co/QES)** on Hugging Face. Not a programmer: Tangerine exists for the pleasure of hearing sequences turn and meet, in the spirit of the synthesizer records of the seventies.
 
+### Contributors
+
+Coding assistance: **Claude (Anthropic)** for the original development, and **Codex (OpenAI)** for the 1.3 interface, mobile layout, recording workflow, tests and release preparation. Jean-Pascal directs the project and its musical choices.
+
 If it gives you a good long drift, you can [buy me a coffee](https://buymeacoffee.com/oFJ5CiY7n). Entirely optional, and Tangerine stays exactly as free either way.
 
 ## License

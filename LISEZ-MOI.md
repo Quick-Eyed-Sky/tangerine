@@ -59,3 +59,7 @@ GitHub Pages sert des fichiers statiques et ne peut pas exécuter le serveur d'e
 La [release 1.2](https://github.com/Quick-Eyed-Sky/tangerine/releases/tag/v1.2.0), son tag et son téléchargement restent conservés. Une [démo 1.2 archivée](https://quick-eyed-sky.github.io/tangerine/versions/v1.2.0/) reprend les fichiers d'origine sans modification.
 
 Tout le son est produit ou capturé localement. Aucun compte, modèle, service audio externe ou analytique. Licence MIT.
+
+## Contributions
+
+Jean-Pascal dirige le projet et ses choix musicaux, avec l’aide au développement de **Claude (Anthropic)** pour les versions initiales et de **Codex (OpenAI)** pour l’interface 1.3, le mode téléphone, l’enregistrement, les tests et la préparation de la publication.
