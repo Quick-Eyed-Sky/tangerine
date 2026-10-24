@@ -1,0 +1,7 @@
+tools/renders/
+.DS_Store
+node_modules/
+# Local only: earlier versions, listening renders, release archives.
+old versions/
+Ecoute/
+release/

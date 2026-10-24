@@ -1,0 +1,14 @@
+{
+  "name": "tangerine",
+  "version": "1.2.0",
+  "private": true,
+  "type": "module",
+  "description": "An endless vine of electronic sequences and slow tonal harmony, in your browser. Loopra's electric sibling.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "python3 scripts/serve.py --no-open",
+    "check": "for f in dist/*.js; do node --check $f || exit 1; done",
+    "test": "node --test tests/*.test.mjs",
+    "render": "node tools/render.mjs"
+  }
+}

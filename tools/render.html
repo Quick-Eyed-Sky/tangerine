@@ -1,0 +1,12 @@
+<!doctype html><meta charset="utf-8"><title>Tangerine render</title>
+<script type="module">
+import { renderOffline, encodeWav } from '../dist/audio.js';
+window.render = async (options) => {
+  const { buffer, midi, abc, lead, log } = await renderOffline(options);
+  const L = buffer.getChannelData(0), R = buffer.getChannelData(1);
+  const wav = encodeWav([L, R], buffer.sampleRate);
+  const b64 = (bytes) => { let s = ''; for (let i = 0; i < bytes.length; i += 32768) s += String.fromCharCode(...bytes.subarray(i, i + 32768)); return btoa(s); };
+  return { wav: b64(wav), midi: b64(midi), abc, lead, log: log.map((x) => ({ t: x.t, step: x.step, chord: x.harmony?.chord, key: x.harmony?.key, modulation: x.harmony?.modulation, mutation: x.mutation })) };
+};
+window.ready = true;
+</script>

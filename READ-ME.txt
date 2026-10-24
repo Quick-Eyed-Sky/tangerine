@@ -1,0 +1,21 @@
+TANGERINE 1.2.0 — SEQUENCES IN SLOW LIGHT
+
+1. Keep this whole folder together. Python 3 is required.
+2. On a Mac, double-click Tangerine.command.
+3. Keep its Terminal window open, then click Start the vine in the browser.
+
+No download needed to just listen: https://quick-eyed-sky.github.io/tangerine/
+
+If macOS blocks the downloaded launcher, read docs/first-opening.md.
+For a trusted download, the usual path is:
+System Settings > Privacy & Security > Security > Open Anyway.
+Apple's explanation: https://support.apple.com/en-us/102445
+
+Another way to start, from Terminal in this folder:
+python3 scripts/serve.py --open
+
+The footer says v1.2.0. Every layer has a headphone Solo button.
+If an older Tangerine tab is still open, use the fresh page opened by this launcher.
+
+Source: https://github.com/Quick-Eyed-Sky/tangerine
+Full instructions: README.md (a French guide: LISEZ-MOI.md)
