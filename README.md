@@ -6,7 +6,7 @@
 
 ![Tangerine 1.3: composition on the left, the animated score and layers in the centre, space and recording on the right](docs/tangerine.png)
 
-*Desktop layout shown in the local edition; New journey now sits next to playback.*
+*The local edition playing, with New journey in the top bar.*
 
 *Loopra’s electric sibling. Every sound is synthesized in the browser. Free and open source, with an English interface.*
 
