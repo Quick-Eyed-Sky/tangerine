@@ -62,4 +62,4 @@ Tout le son est produit ou capturé localement. Aucun compte, modèle, service a
 
 ## Contributions
 
-Jean-Pascal dirige le projet et ses choix musicaux, avec l’aide au développement de **Claude (Anthropic)** pour les versions initiales et de **Codex (OpenAI)** pour l’interface 1.3, le mode téléphone, l’enregistrement, les tests et la préparation de la publication.
+Jean-Pascal dirige le projet et ses choix musicaux, avec l’aide au développement de **[Claude](https://github.com/claude) (Anthropic)** pour les versions initiales et de **[Codex](https://github.com/codex) (OpenAI)** pour l’interface 1.3, le mode téléphone, l’enregistrement, les tests et la préparation de la publication.
