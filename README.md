@@ -2,85 +2,95 @@
 
 **An endless vine of electronic sequences and slow, tonal harmony, for your browser. Twelve synthesized layers turn on one clock; the chords move by the notes they share, and now and then the whole vine travels to another key.**
 
-**[▶ Play in your browser →](https://quick-eyed-sky.github.io/tangerine/)** · **[⬇️ Download the latest release →](https://github.com/Quick-Eyed-Sky/tangerine/releases/latest)** · [First opening on a Mac →](docs/first-opening.md)
+**[▶ Play in your browser](https://quick-eyed-sky.github.io/tangerine/)** · **[⬇ Download Tangerine 1.3.0](https://github.com/Quick-Eyed-Sky/tangerine/releases/tag/v1.3.0)** · [French guide](LISEZ-MOI.md) · [First opening on a Mac](docs/first-opening.md)
 
-Short sequences of different lengths keep meeting in new places: a bass of 16 sixteenths, an arpeggio of 12, a high motif of 7 eighths, and a counter sequence of 10 dotted eighths that walks at its own pace against them. Above them, a pad holds each chord for 4 to 16 bars; low strings bow, a long lead sings into a long echo, a slow melody comes back after long rests, bells ring at their own times. Now and then one layer rests and another comes in. No drums: the accents of the sequences are the rhythm.
+![Tangerine 1.3: composition on the left, the animated score and layers in the centre, space and recording on the right](docs/tangerine.png)
 
-![Tangerine: on the left the tempo, the form, the harmony, the sequences, slow change, reverb and the Keep panel; on the right the current chord, the vine of notes as they pass, and the twelve layers, each with an on/off switch and a headphone button](docs/tangerine.png)
+*Desktop layout shown in the local edition; New journey now sits next to playback.*
 
-*Loopra's electric sibling. Every sound is synthesized in the browser.*
+*Loopra’s electric sibling. Every sound is synthesized in the browser. Free and open source, with an English interface.*
 
-## What it does
+## What’s new in 1.3
 
-- **Twelve layers**, each switchable and each with a **headphone button** to hear it alone: bass sequence, arpeggio, high motif, pad, bells, low strings, counter sequence, long lead, drone, high strings, slow melody, echo pulse. Each has three or so sounds, its envelope (attack, decay, sustain, release, gate) and an echo timed to the tempo.
-- **Tonal, and travelling.** The harmony stays in a key and a mode, from open fifths to ninths and elevenths. **Key changes** sets how often it moves (per ten minutes, or in a whole thread) and **Distance** how far: another mode on the same notes, the relative key, a fifth away, up to chromatic mediants. Every change goes through a shared chord or a held common tone, so it glides. Nothing rubs: no chord holds a minor ninth or a tritone, and the bass never sits a semitone under the chord.
-- **Random** draws a key, a mode and the harmony settings, and says what it drew.
-- **It keeps changing, slowly.** *Evolution* changes one detail of one sequence every few dozen passes. *New sequences* come by themselves every 32 bars (or 64, 128, or only with the button). *Slow change* lets note lengths, echoes, brightness, levels and richness wander over minutes, *Sounds change* gives one layer another of its sounds now and then, and *Layers change* lets one layer rest while another comes in, so that as many keep playing: silences come and go, the bass included.
-- **Endless, or a thread** of 3 minutes to 2 hours that comes home: twenty-four bars before the end it heads back to the home key, the last chord is held while the layers leave one by one, and the pad fades.
-- **Keep what you just heard.** Tangerine always remembers the last 20 minutes: keep the last 30 seconds, minutes, or everything since the start, as **WAV**, **MIDI** (one track per layer, exactly on the grid) and **ABC** (a full score, and a lead sheet with chord symbols). A whole thread can also be made as files, faster than it plays.
-- **Live MIDI out** to another app or synthesizer, or MIDI only, as a silent sequencer.
-- The same **seed** and settings always give the same vine. *Save setup* keeps them in a small JSON file.
+- **An interface for phones, laptops and large screens.** On a large screen, composition lives on the left, the animated score and layers in the centre, and space and recording on the right. On a phone, switch between **Play**, **Compose** and **Keep & Record** without restarting the music. Playback and master volume stay within reach.
+- **Full-screen animated score on phones too**, in portrait or landscape, with Play/Pause and a return button. A page-filling view is available when native fullscreen is unavailable.
+- **Tempo from 6 to 140 BPM**, starting at 60. At 6 BPM, one beat lasts ten seconds. Timed threads respect the engine’s existing twelve-bar minimum; shorter choices are unavailable at very slow tempos. Echo delay retains its existing maximum of 3.9 seconds.
+- **New journey is next to playback.** It draws another seed while keeping your harmony, tempo, layer settings and listening timer. **Restart from zero**, the round arrow, also resets the timer and draws a new key, mode and harmony settings.
+- **Keep and Record now describe different actions.** Recover a recent passage looks back; Record starts capturing from now.
+- **Continuous local WAV recording.** With the downloaded edition and its Python launcher, sound is written progressively to your computer until you stop. Consecutive one-hour WAV files allow long sessions without retaining the entire recording in browser memory. This feature records audio; it does not create a full-session MIDI or ABC file.
 
-No account, samples, model downloads or package installation. The interface is in English; a French guide is in [LISEZ-MOI.md](LISEZ-MOI.md).
+The musical engine, synthesis, harmony rules, effects and note-export modules are unchanged from 1.2. This release changes the interface, initial settings and recording workflow.
 
 ## Start listening
 
-**In your browser:** [quick-eyed-sky.github.io/tangerine](https://quick-eyed-sky.github.io/tangerine/). Click **Start the vine**: browsers wait for a click before making sound. Chrome is recommended (Web MIDI, audio capture).
+**Online:** open [the demo](https://quick-eyed-sky.github.io/tangerine/) and click **Start the vine**. The browser requires a click before making sound. Desktop Chrome is recommended for the widest feature support. On iPhone, check silent mode and media volume if the page appears to play without sound; phone audio behaviour still depends on the browser and system.
 
-**On your own computer**, with **Python 3**:
+**On your computer:** download `Tangerine-v1.3.0.zip` from the [release](https://github.com/Quick-Eyed-Sky/tangerine/releases/tag/v1.3.0), unzip it and keep the whole folder together. Python 3 is required; there are no packages to install.
 
-- **On a Mac:** double-click **Tangerine.command** in this folder. It opens Chrome (or your default browser) on `http://127.0.0.1:4250`. Keep its Terminal window open while you listen. If macOS blocks it, see [the first-opening guide](docs/first-opening.md).
-- **On macOS or Linux:** open a terminal in this folder and run `./run.sh`, then open the address it prints.
+- On a Mac, double-click **Tangerine.command**. See [first opening](docs/first-opening.md) if macOS asks you to confirm a downloaded launcher.
+- On macOS or Linux, run `./run.sh`.
+- Or run `python3 scripts/serve.py --open` from the extracted folder.
 
-**Space** plays or pauses when you are not using another control. The round arrow next to *Pause* **restarts from zero** with a new seed, key, mode and harmony; the corner button of the vine (or a double click on it) shows it **full screen**.
+The launcher chooses a free loopback port starting at **4350** and distinguishes different copies of Tangerine. Keep its Terminal window open while listening or recording.
 
-## The controls
+Press **Space** to play or pause when you are not using another control. **Show tips** reveals the longer explanations. On a computer, **Phone preview** tries the phone layout without reloading the page.
 
-Every slider has a one-line explanation under it in the app. In short:
+## Keep & Record
 
-| Control | What it does |
-| --- | --- |
-| **Tempo** | 60–140 BPM, 80 at first. The sequences, the echoes and the recorded MIDI all follow it. |
-| **The form** | *Endless*, or *a thread of* 3 minutes to 2 hours, which comes home and ends. *Make the thread as files* renders it offline (WAV, MIDI, ABC; beyond 20 minutes, MIDI and ABC only). |
-| **Key, Mode** | Where the vine lives. Change them while it plays and it travels there by the gentlest route. |
-| **Random** | Draws a key, a mode and the four settings below. |
-| **Harmonic richness** | The colour of each chord: fifths and suspended chords, triads, sevenths and 6/9, ninths and elevenths. |
-| **Key changes** | How many times key and mode change, per ten minutes or in the whole thread. |
-| **Distance** | How far each change goes. |
-| **Held bass** | How often the bass keeps the home note while the chords move above it. |
-| **Evolution** | How often a sequence changes one detail. |
-| **New sequences** | Draws all the patterns again (the harmony stays), now or by themselves every 32 (at first), 64 or 128 bars. |
-| **Slow change** | How far the settings drift around where you set them, over minutes. |
-| **Sounds change** | Never, now and then, or often: one layer takes another of its sounds. |
-| **Layers change** | Never, now and then (about every 32 bars), or often: one layer rests and another comes in, on a chord change. As many as you switched on keep playing. |
-| **Reverb · dry–wet, Room size** | How much reverb, and how large the room. |
-| **Motion** | The sound breathes: filters, tuning and level move on slow loops; the notes stay the same. |
-| **Keep** | The last 30 s to 20 min, or since the start, as WAV, MIDI, ABC and a lead sheet. *Record from now* takes up to 30 minutes. |
-| **MIDI out** | Sends the notes of the enabled layers to a port, on channels 1–9 and 11–13. |
+| Action | What is saved | Where and when |
+| --- | --- | --- |
+| **Recover a recent passage** | The last 30 seconds to 20 minutes, as WAV audio, MIDI notes, ABC score and a lead sheet, where capture is supported | Download links appear under recent passages. Click them before closing the tab. |
+| **Record a passage — online demo** | From now until Stop, up to 30 minutes, held in browser memory | Download the files when the passage ends. |
+| **Record to this computer — local download** | Audio from Record until Stop, written progressively as stereo PCM 16-bit WAV | Files are saved automatically in `Recordings/`, next to the launcher, in a dated session folder. Each hour continues in the next WAV file. |
+| **Record an already playing Chrome tab — local download** | The shared tab’s audio from capture start until Stop | Choose the tab and enable **Share tab audio** in Chrome. It is not reloaded. No video or microphone input is recorded. |
+
+**“All available (up to 20 min)” means the audio still in the recent-memory buffer, not an arbitrarily long session since its beginning.** Closing the page removes temporary browser download links. Local continuous files already written to disk remain on your computer.
+
+For a long local recording, keep the recorder tab and Terminal open, keep the computer awake and check that there is enough disk space. Stop recording with **Stop & finish files** to finish the last audio block. Pausing playback records silence until playback resumes or recording stops. A system interruption can still lose an unconfirmed final block.
+
+GitHub Pages serves static files: **it cannot run the local recording server**. The online demo therefore offers browser passage recording and a link to the local download for continuous recording.
+
+## The instrument
+
+Short sequences of different lengths keep meeting in new places: bass, arpeggio, high motif, dotted-eighth counter sequence and quarter-note echo pulse. A pad, low and high strings, long lead, slow melody, bells and drone move around them. No drums: the accents of the sequences are the rhythm.
+
+- **Twelve layers**, with ON/OFF, solo headphones, sound, level, envelope and tempo-related echo controls. On a phone, **Edit sound & shape** opens the detailed settings.
+- **Tonal harmony that travels** through shared chords or common tones. Key changes sets how often it moves; Distance sets how far. Harmonic richness changes the chord vocabulary.
+- **Slow evolution** changes a sequence detail now and then. New sequences, sounds and layer participation can also change automatically.
+- **Endless or a timed thread**, which returns home and ends. Whole threads can be rendered as notes, with offline WAV rendering for supported lengths up to 20 minutes.
+- **Live MIDI out**, when supported, or MIDI only as a silent sequencer.
+- **Reproducible starting points:** the same seed and settings give the same generated vine. Manual interventions and their timing also affect a live session. Save and load setups as JSON.
+
+The 1.3 starting setup is **60 BPM, F♯ Lydian, richness 58, six key changes per ten minutes, distance 35, held bass 56, evolution 100 and slow change 100**. Sequences and sounds renew about every 32 bars, with layer rotation about every 32 bars. Other layer and effect defaults remain as in 1.2. Settings are remembered in the browser; JSON setups remain compatible with supported earlier versions.
+
+## Previous version
+
+**1.2 remains available:** [release and original download](https://github.com/Quick-Eyed-Sky/tangerine/releases/tag/v1.2.0) · [original source at its tag](https://github.com/Quick-Eyed-Sky/tangerine/tree/v1.2.0) · [archived 1.2 browser demo](https://quick-eyed-sky.github.io/tangerine/versions/v1.2.0/).
+
+The archived demo is a byte-for-byte copy of the 1.2 `dist/` folder. Its interface and behaviour have not been updated. The original documentation is retained in [docs/versions/](docs/versions/).
 
 ## How it is made
 
-Plain HTML, CSS and JavaScript, with Web Audio oscillators, filters, envelopes, ping-pong tape echoes and convolution reverb. `engine.js` decides everything one sixteenth note at a time from the seed: the sequences, the chords, the key changes and the other strands. `theory.js` holds the modes, the chord vocabulary, the voice leading and the modulations. `audio.js` turns it into sound, `journal.js`, `midi.js` and `abc.js` write it down. No build step or runtime dependency.
+Plain HTML, CSS and JavaScript, with no build step or runtime packages. `engine.js` generates the music, `theory.js` describes harmony, and `audio.js` synthesizes it. `journal.js`, `midi.js` and `abc.js` write notes and scores. The separate disk recorder taps the master output and writes PCM blocks through the local Python server.
 
-All synthesis happens in your browser. Settings stay in local storage unless you save a setup file. There are no analytics, remote fonts, external audio services or model calls.
+The complete static demo is **`dist/`**. Paths are relative, including when hosted under `/tangerine/`. All sound is generated or captured locally. There are no analytics, remote fonts, external audio services, model calls or account requirements. Recordings, personal setups and development captures are excluded from releases and source publication.
 
-The complete website is **`dist/`**; any static host can serve it, and the browser demo is that folder on GitHub Pages. The Python server only delivers those files. See [PUBLISHING.md](PUBLISHING.md).
-
-Tests, with Node.js 20 or later:
+With Node.js 20+ and Python 3:
 
 ```sh
 npm run check
 npm test
+npm run test:recording
 ```
 
-They check the harmony (no rubs, modulations through shared notes, threads that end at home), the sequences, the MIDI and ABC files. The sound itself is for listening.
+See [PUBLISHING.md](PUBLISHING.md) for release and GitHub Pages instructions.
 
 ## Who made this
 
-Jean-Pascal — **[Quick-Eyed Sky](https://www.youtube.com/@QuickEyedSky)** on YouTube, **[QES](https://huggingface.co/QES)** on Hugging Face. Not a programmer: this exists for the pleasure of hearing sequences turn and meet, the way they did on the synthesizer records of the seventies.
+Jean-Pascal — **[Quick-Eyed Sky](https://www.youtube.com/@QuickEyedSky)** on YouTube, **[QES](https://huggingface.co/QES)** on Hugging Face. Not a programmer: Tangerine exists for the pleasure of hearing sequences turn and meet, in the spirit of the synthesizer records of the seventies.
 
-If it gives you a good long drift, you can **[buy me a coffee](https://buymeacoffee.com/oFJ5CiY7n)**. Entirely optional, and Tangerine stays exactly as free either way.
+If it gives you a good long drift, you can [buy me a coffee](https://buymeacoffee.com/oFJ5CiY7n). Entirely optional, and Tangerine stays exactly as free either way.
 
 ## License
 
-MIT — see [LICENSE](LICENSE). You can use, modify and share it under those terms.
+MIT — see [LICENSE](LICENSE).

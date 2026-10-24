@@ -8,8 +8,10 @@
   <title>Tangerine · sequences in slow light</title>
   <link rel="icon" type="image/svg+xml" href="./icon.svg">
   <link rel="stylesheet" href="./style.css?v=12">
+  <link rel="stylesheet" href="./studio.css?v=130">
 </head>
-<body>
+<body data-panel="play">
+  <div class="app-shell">
   <svg class="symbols" aria-hidden="true"><defs>
     <symbol id="play" viewBox="0 0 24 24"><path d="m9 5 10 7-10 7Z"/></symbol>
     <symbol id="pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
@@ -29,37 +31,27 @@
   <header class="app-header">
     <a class="brand" href="./" aria-label="Tangerine home"><span class="brand-mark" aria-hidden="true"><svg id="helix" class="helix" viewBox="0 0 40 40"></svg></span>tangerine<span class="wordmark-dot">.</span></a>
     <span class="brand-note">SEQUENCES IN SLOW LIGHT</span>
-    <div class="header-end"><span class="local-label"><i></i> JUST SOUND. MADE HERE.</span><button id="helpButton" class="help-button" aria-label="About Tangerine" title="About Tangerine">?</button></div>
+    <div class="header-end"><span class="local-label"><i></i> <span id="editionLabel">TANGERINE 1.3</span></span><button id="hintToggle" class="header-action" type="button" aria-pressed="false">Show tips</button><button id="previewToggle" class="header-action" type="button" aria-pressed="false">Phone preview</button><button id="helpButton" class="help-button" aria-label="About Tangerine" title="About Tangerine">?</button></div>
   </header>
 
   <main>
     <div class="studio-top"><h1>An endless vine of sequences.</h1><p>Short loops on one clock. Chords that move by the notes they share.</p></div>
 
-    <div class="instrument">
-      <aside class="controls" aria-label="Sound controls">
-        <div class="transport-row">
+    <section class="player-bar" aria-label="Playback and master volume"><div class="player-transport"><div class="transport-row">
           <button id="transport" class="transport" aria-pressed="false"><span class="play-circle"><svg><use href="#play"/></svg></span><span><strong id="transportText">Start the vine</strong><small id="sourceName">Sequences · one moving harmony</small></span><i id="transportDot" class="transport-dot"></i></button>
-          <button id="restart" class="restart-button" type="button" title="Restart: from zero, with a new seed, key, mode and harmony settings" aria-label="Restart from zero with new settings"><svg aria-hidden="true"><use href="#restart-icon"/></svg></button>
+          <button id="restart" class="restart-button" type="button" title="Restart from zero: reset the timer; draw a new seed, key, mode and harmony. Tempo and layer settings stay." aria-label="Restart from zero: new seed and new harmony"><svg aria-hidden="true"><use href="#restart-icon"/></svg></button>
         </div>
         <div class="transport-caption"><span id="playStatus">Ready when you are.</span><span id="elapsed">0:00</span></div>
 
-        <section class="control-section tempo-section">
-          <label class="slider-label big" for="bpm"><span>Tempo</span><output id="bpmValue">80 <small>BPM</small></output></label>
-          <input id="bpm" type="range" min="60" max="140" value="80" step="1">
+        </div><section class="master-volume"><label class="slider-label" for="volume"><span>Volume</span><output id="volumeValue">60</output></label><input id="volume" type="range" min="0" max="100" value="60"></section><div class="player-actions"><button id="newJourney" class="new-journey-button" type="button" title="New seed and patterns. Keep your harmony, tempo, layer settings and elapsed listening time."><svg aria-hidden="true"><use href="#shuffle"/></svg><span>New journey</span></button><button id="quickRecord" class="quick-record" type="button"><i class="record-light"></i><span>Record</span><span id="quickRecordTime" hidden>0:00</span></button><button id="quickKeep" class="renew-button" type="button">Keep &amp; files <span>↗</span></button></div></section>
+    <div class="instrument">
+      <aside class="controls compose-pane" aria-labelledby="composeTitle"><div class="pane-heading"><p class="section-label plain">COMPOSE</p><h2 id="composeTitle">Shape the journey.</h2></div><details class="control-group" id="tempoGroup" open><summary><span>Tempo</span></summary><section class="control-section tempo-section">
+          <label class="slider-label big" for="bpm"><span>Tempo</span><output id="bpmValue">60 <small>BPM</small></output></label>
+          <input id="bpm" type="range" min="6" max="140" value="60" step="1">
           <div class="scale-caption"><span>Slow pulse</span><span>Bright</span></div>
-          <p class="slider-hint">The one clock: the sequences, the echoes and the recorded MIDI all follow it.</p>
-        </section>
+          <p class="slider-hint">The one clock: 6–140 BPM, starting at 60. The recorded MIDI follows it.</p>
+        <p class="tempo-note" id="slowTempoHint" hidden></p></section></details><details class="control-group" id="harmonyGroup" open><summary><span>THE HARMONY</span><span id="keyReadout">D DORIAN</span></summary><section class="control-section">
 
-        <section class="control-section form-section">
-          <div class="section-label"><span>THE FORM</span><span id="formReadout">ENDLESS</span></div>
-          <div class="segmented" role="radiogroup" aria-label="Form"><button id="formEndless" type="button" role="radio" aria-checked="true">Endless</button><button id="formThread" type="button" role="radio" aria-checked="false">A thread of</button><select id="threadMinutes" aria-label="Thread length"><option value="3">3 min</option><option value="5">5 min</option><option value="8">8 min</option><option value="10" selected>10 min</option><option value="15">15 min</option><option value="20">20 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">1 hour</option><option value="90">1 h 30</option><option value="120">2 hours</option></select></div>
-          <div class="thread-bar" id="threadBar" hidden><i id="threadFill"></i></div>
-          <p class="control-hint" id="formHint">Like Loopra: it never ends. Or a thread: it comes home, the layers leave one by one, and the last chord fades.</p>
-          <button id="renderThread" class="renew-button spaced-button" type="button"><svg><use href="#download"/></svg><span id="renderText">Make the thread as files</span><span>↓</span></button>
-        </section>
-
-        <section class="control-section">
-          <div class="section-label"><span>THE HARMONY</span><span id="keyReadout">D DORIAN</span></div>
           <div class="tonality-fields"><label for="key">Key<select id="key"><option>C</option><option>C#</option><option selected>D</option><option>D#</option><option>E</option><option>F</option><option>F#</option><option>G</option><option>G#</option><option>A</option><option>A#</option><option>B</option></select></label><label for="mode">Mode<select id="mode"><option value="dorian" selected>Dorian</option><option value="aeolian">Aeolian · minor</option><option value="lydian">Lydian</option><option value="mixolydian">Mixolydian</option><option value="ionian">Ionian · major</option><option value="phrygian">Phrygian</option></select></label></div>
           <button id="randomHarmony" class="renew-button" type="button"><svg><use href="#dice"/></svg><span>Random</span><span>↻</span></button>
           <p class="renew-note" id="randomNote">Draws a key, a mode and the four settings below.</p>
@@ -71,19 +63,15 @@
           <p class="slider-hint">How far each change goes: another mode on the same notes, or a leap to a distant key.</p>
           <label class="slider-label spaced" for="pedal"><span>Held bass</span><output id="pedalValue">0</output></label><input id="pedal" type="range" min="0" max="100" value="0"><div class="scale-caption"><span>Follows the chords</span><span>Holds the home note</span></div>
           <p class="slider-hint">How often the bass keeps the home note while the chords move above it.</p>
-        </section>
+        </section></details><details class="control-group" id="sequencesGroup" open><summary><span>THE SEQUENCES</span><span id="cycleReadout">MEET EVERY 336</span></summary><section class="control-section">
 
-        <section class="control-section">
-          <div class="section-label"><span>THE SEQUENCES</span><span id="cycleReadout">MEET EVERY 336</span></div>
           <label class="slider-label" for="evolution"><span>Evolution</span><output id="evolutionValue">70</output></label><input id="evolution" type="range" min="0" max="100" value="70"><div class="scale-caption"><span>Fixed</span><span>Restless</span></div>
           <p class="slider-hint">How often a sequence changes one detail: a note, an octave, an accent. The harmony is untouched.</p>
           <button id="newSequences" class="renew-button spaced-button" type="button"><svg><use href="#shuffle"/></svg><span>New sequences</span><span>↻</span></button>
           <div class="tonality-fields single renew-auto"><label for="renew">New sequences by themselves<select id="renew"><option value="0">Never: only with the button</option><option value="32">Every 32 bars</option><option value="64">Every 64 bars</option><option value="128">Every 128 bars</option></select></label></div>
           <p class="renew-note">The harmony stays. The patterns change, on a chord change.</p>
-        </section>
+        </section></details><details class="control-group" id="changeGroup" open><summary><span>SLOW CHANGE</span><span id="driftReadout">DRIFTING</span></summary><section class="control-section">
 
-        <section class="control-section">
-          <div class="section-label"><span>SLOW CHANGE</span><span id="driftReadout">DRIFTING</span></div>
           <label class="slider-label" for="drift"><span>Slow change</span><output id="driftValue">50</output></label><input id="drift" type="range" min="0" max="100" value="50"><div class="scale-caption"><span>Settings stay put</span><span>Everything drifts</span></div>
           <p class="slider-hint">Note lengths, echoes, brightness, levels, richness, distance and held bass wander slowly around their settings, each on its own wave of a few minutes.</p>
           <div class="tonality-fields single renew-auto"><label for="recolor">Sounds change<select id="recolor"><option value="0">Never: each layer keeps its sound</option><option value="64" selected>Now and then: one layer, about every 64 bars</option><option value="32">Often: one layer, about every 32 bars</option></select></label></div>
@@ -91,10 +79,26 @@
           <div class="tonality-fields single renew-auto"><label for="rotate">Layers change<select id="rotate"><option value="0">Never: layers stay as you set them</option><option value="32" selected>Now and then: about every 32 bars</option><option value="16">Often: about every 16 bars</option></select></label></div>
           <p class="slider-hint">One layer rests and another comes in, on a chord change, so the same number keep playing. The bass rests too.</p>
           <p class="renew-note" id="rotateNote"></p>
-        </section>
+        </section></details><details class="control-group" id="formGroup" open><summary><span>THE FORM</span><span id="formReadout">ENDLESS</span></summary><section class="control-section form-section">
 
-        <section class="control-section">
-          <div class="section-label"><span>THE PLACE · REVERB</span><span id="placeReadout">HALF WET</span></div>
+          <div class="segmented" role="radiogroup" aria-label="Form"><button id="formEndless" type="button" role="radio" aria-checked="true">Endless</button><button id="formThread" type="button" role="radio" aria-checked="false">A thread of</button><select id="threadMinutes" aria-label="Thread length"><option value="3">3 min</option><option value="5">5 min</option><option value="8">8 min</option><option value="10" selected>10 min</option><option value="15">15 min</option><option value="20">20 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">1 hour</option><option value="90">1 h 30</option><option value="120">2 hours</option></select></div>
+          <div class="thread-bar" id="threadBar" hidden><i id="threadFill"></i></div>
+          <p class="control-hint" id="formHint">Like Loopra: it never ends. Or a thread: it comes home, the layers leave one by one, and the last chord fades.</p>
+          <button id="renderThread" class="renew-button spaced-button" type="button"><svg><use href="#download"/></svg><span id="renderText">Make the thread as files</span><span>↓</span></button>
+        </section></details></aside>
+      <section class="vine-panel" aria-label="The vine">
+        <div class="harmony-head">
+          <div><p class="section-label plain">NOW</p><h2 id="chordName">—</h2><p id="keyLine" class="key-line">Press start: the first chord is on its way.</p></div>
+          <div class="journey" id="journey" aria-live="polite"></div>
+        </div>
+        <div class="vine-frame" id="vineFrame"><div class="vine-now" aria-hidden="true"><strong id="vineChord"></strong><span id="vineKey"></span></div><button id="fullscreen" class="fullscreen-button" type="button" title="Full-screen animated score" aria-label="Show the score full screen"><svg aria-hidden="true"><use href="#expand"/></svg></button><button id="focusPlay" type="button" aria-pressed="false">Play</button><span class="focus-caption">THE SCORE · LOW NOTES BELOW / HIGH NOTES ABOVE</span><canvas id="vine" aria-label="Notes as they pass: low notes below, high notes above, the past on the left" role="img"></canvas><ol id="chordTrail" class="chord-trail"></ol></div>
+
+        <div class="layers-heading"><div><p class="section-label plain">THE STRANDS</p><h3>Twelve layers, one clock.</h3></div><span class="enabled-badge" id="enabledBadge">8 ON</span></div>
+        <div id="soloPanel" class="solo-panel" hidden><span><svg aria-hidden="true"><use href="#headphones"/></svg> SOLO <strong id="soloName"></strong></span><button id="returnToMix" type="button">Return to the mix ↗</button></div>
+        <div class="layer-tools" aria-label="Layer visibility"><button type="button" id="showAllLayers" aria-pressed="true">All 12</button><button type="button" id="showActiveLayers" aria-pressed="false">Playing layers</button><span>Tap a layer’s Edit button for its sound &amp; envelope.</span></div><div id="layerList" class="layer-list"></div>
+      </section>
+      <aside class="right-pane" aria-label="Space and recordings"><div class="pane-heading"><p class="section-label plain">SPACE &amp; KEEP</p><h2>Give it room. Keep it.</h2></div><details class="control-group" id="spaceGroup" open><summary><span>THE PLACE · REVERB</span><span id="placeReadout">HALF WET</span></summary><section class="control-section">
+
           <div class="pair-grid">
             <div><label class="slider-label" for="wet"><span>Reverb · dry–wet</span><output id="wetValue">50</output></label><input id="wet" type="range" min="0" max="100" value="50"><div class="scale-caption"><span>Close</span><span>Cosmic</span></div></div>
             <div><label class="slider-label" for="space"><span>Room size</span><output id="spaceValue">50</output></label><input id="space" type="range" min="0" max="100" value="50"><div class="scale-caption"><span>Room</span><span>Vast</span></div></div>
@@ -102,42 +106,41 @@
           <p class="slider-hint">Reverb: how much of each layer reaches the room (near layers stay drier), and how big the room is, up to a long hall.</p>
           <label class="slider-label spaced" for="motion"><span>Motion</span><output id="motionValue">70</output></label><input id="motion" type="range" min="0" max="100" value="70"><div class="scale-caption"><span>Still</span><span>Shimmering</span></div>
           <p class="slider-hint">The sound breathes: filters open and close, the tuning floats, the level sways. The notes stay the same.</p>
-        </section>
+        </section></details><section class="record-section studio-panel" id="keepSection" aria-labelledby="keepTitle">
+  <div class="panel-heading"><p class="section-label plain">KEEP &amp; RECORD</p><h2 id="keepTitle">Keep the good parts.</h2></div>
+    <div class="capture-block browser-recording" id="portableRecording" hidden><span class="eyebrow">FROM NOW ON · IN THIS BROWSER</span><h3>Record a passage</h3><p>Record from now until Stop, up to 30 minutes, then download the files. For longer sessions, use the local download.</p><button id="recordPassageButton" class="record-button" type="button" aria-pressed="false"><svg aria-hidden="true"><use href="#record"/></svg><span id="memoryRecordText">Record a passage</span><span id="memoryRecordTime">0:00</span></button><p class="capture-help">Creates WAV audio, MIDI notes and ABC download links under recent passages. Download them before closing the tab.</p></div>
+  <div class="capture-block disk-block" id="diskBlock">
+    <span class="eyebrow"><i class="record-light" id="recordLight"></i> FROM NOW ON</span>
+    <h3 id="diskTitle">Record to this computer</h3>
+    <p id="diskIntro">The local download can write audio directly to your computer until you stop.</p>
+    <div id="diskControls"><button id="recordButton" class="record-button disk-record" type="button" aria-pressed="false"><svg aria-hidden="true"><use href="#record"/></svg><span id="recordText">Record to Mac</span><span id="recordTime">0:00</span></button>
+    <button id="recordOtherTab" class="text-action" type="button">Record an already playing Chrome tab ↗</button></div>
+    <p class="capture-status" id="diskStatus" role="status">Checking local recording…</p>
+    <p class="capture-help" id="diskHelp">No 30-minute stop. Consecutive one-hour WAV files keep long sessions manageable. Keep this recorder tab open and your Mac awake.</p>
+    <p class="recording-path" id="recordingPath"></p>
+    <ol id="diskFiles" class="disk-files"></ol><a id="localDownload" class="renew-button local-download" href="https://github.com/Quick-Eyed-Sky/tangerine/releases/latest" hidden>Download for continuous recording ↗</a>
+  </div>
+  <div class="capture-block recent-block">
+    <div class="recent-title"><span class="eyebrow">JUST BEFORE NOW</span><span id="heardReadout">NOTHING YET</span></div>
+    <h3>Recover a recent passage</h3>
+    <p>The last 20 minutes are remembered temporarily. This does not start a recording.</p>
+    <div class="keep-row"><select id="keepLength" aria-label="Passage to recover"><option value="30">Last 30 seconds</option><option value="60">Last minute</option><option value="120" selected>Last 2 minutes</option><option value="300">Last 5 minutes</option><option value="600">Last 10 minutes</option><option value="1200">Last 20 minutes</option><option value="all">All available (up to 20 min)</option></select><button id="keepButton" class="keep-button" type="button"><svg aria-hidden="true"><use href="#download"/></svg>Recover</button></div>
+    <p class="control-hint" id="recordHint">Creates download links below: WAV audio, MIDI notes, ABC score and lead sheet. Download a file to keep it after closing the page.</p>
+    <ol id="takes" class="takes"></ol>
+  </div>
 
-        <section class="control-section volume-section"><label class="slider-label" for="volume"><span>Volume</span><output id="volumeValue">60</output></label><input id="volume" type="range" min="0" max="100" value="60"></section>
-
-        <section class="control-section record-section">
-          <div class="section-label"><span>KEEP · SOUND, MIDI, ABC</span><span id="heardReadout">NOTHING YET</span></div>
-          <div class="keep-row"><select id="keepLength" aria-label="How much to keep"><option value="30">The last 30 seconds</option><option value="60">The last minute</option><option value="120" selected>The last 2 minutes</option><option value="300">The last 5 minutes</option><option value="600">The last 10 minutes</option><option value="1200">The last 20 minutes</option><option value="all">Since the start</option></select><button id="keepButton" class="keep-button" type="button"><svg><use href="#download"/></svg>Keep</button></div>
-          <button id="recordButton" class="record-button" type="button" aria-pressed="false"><svg><use href="#record"/></svg><span id="recordText">Record from now</span><span id="recordTime">0:00</span></button>
-          <ol id="takes" class="takes"></ol>
-          <p class="control-hint" id="recordHint">Tangerine always remembers the last 20 minutes. Liked what you just heard? Keep it. Each passage gives a WAV, a MIDI file (one track per layer) and an ABC score.</p>
-        </section>
-
-        <section class="control-section midi-section">
+</section><details class="control-group setup-panel" open><summary><span>SETUP &amp; MIDI</span></summary><section class="control-section setup-actions"><button id="saveSetup" class="renew-button" type="button"><svg aria-hidden="true"><use href="#download"/></svg>Save setup</button><button id="loadSetup" class="renew-button" type="button"><svg aria-hidden="true"><use href="#upload"/></svg>Load setup</button><input id="setupFile" type="file" accept="application/json,.json" hidden></section><section class="control-section midi-section">
           <div class="section-label"><span>MIDI OUT · LIVE</span><span id="midiReadout">OFF</span></div>
           <div class="tonality-fields single"><label for="midiPort">Send the notes to<select id="midiPort"><option value="">Nothing (off)</option></select></label></div>
           <label class="check"><input id="midiOnly" type="checkbox"><span>MIDI only: silence the built-in sounds</span></label>
           <p class="control-hint">Channels: bass 1 · arpeggio 2 · motif 3 · pad 4 · bells 5 · low strings 6 · counter sequence 7 · long lead 8 · drone 9 · high strings 11 · slow melody 12 · echo pulse 13.</p>
-        </section>
-      </aside>
-
-      <section class="vine-panel" aria-label="The vine">
-        <div class="harmony-head">
-          <div><p class="section-label plain">NOW</p><h2 id="chordName">—</h2><p id="keyLine" class="key-line">Press start: the first chord is on its way.</p></div>
-          <div class="journey" id="journey" aria-live="polite"></div>
-        </div>
-        <div class="vine-frame" id="vineFrame"><div class="vine-now" aria-hidden="true"><strong id="vineChord"></strong><span id="vineKey"></span></div><button id="fullscreen" class="fullscreen-button" type="button" title="Full screen (Esc to leave)" aria-label="Show the vine full screen"><svg aria-hidden="true"><use href="#expand"/></svg></button><canvas id="vine" aria-label="Notes as they pass: low notes below, high notes above, the past on the left" role="img"></canvas><ol id="chordTrail" class="chord-trail"></ol></div>
-
-        <div class="layers-heading"><div><p class="section-label plain">THE STRANDS</p><h3>Twelve layers, one clock.</h3></div><span class="enabled-badge" id="enabledBadge">8 ON</span></div>
-        <div id="soloPanel" class="solo-panel" hidden><span><svg aria-hidden="true"><use href="#headphones"/></svg> SOLO <strong id="soloName"></strong></span><button id="returnToMix" type="button">Return to the mix ↗</button></div>
-        <div id="layerList" class="layer-list"></div>
-      </section>
+        </section></details></aside>
     </div>
-
-    <footer class="app-footer"><span>TANGERINE <span class="slash">/</span> NOTHING BUT SOUND <span class="app-version">v1.2.0 · SEED <span id="seedValue"></span></span></span><div><button id="newJourney"><svg><use href="#shuffle"/></svg>New journey</button><button id="saveSetup"><svg><use href="#download"/></svg>Save setup</button><button id="loadSetup"><svg><use href="#upload"/></svg>Load setup</button><input id="setupFile" type="file" accept="application/json,.json" hidden></div><span class="shortcut-note"><kbd>space</kbd> to play / pause</span></footer>
+    <footer class="app-footer"><span>TANGERINE <span class="slash">/</span> NOTHING BUT SOUND <span class="app-version">v1.3.0 · SEED <span id="seedValue"></span></span></span><div><a class="previous-version" href="./versions/v1.2.0/">Previous version · 1.2 ↗</a></div><span class="shortcut-note"><kbd>space</kbd> to play / pause</span></footer>
   </main>
 
+  </div>
+  <nav class="mobile-nav" aria-label="Studio views"><button type="button" data-panel-target="play" aria-current="page"><span>◉</span>Play</button><button type="button" data-panel-target="compose"><span>☷</span>Compose</button><button type="button" data-panel-target="keep"><span>↓</span>Keep &amp; Record</button></nav>
   <dialog id="about" aria-labelledby="aboutTitle"><div class="dialog-heading"><span class="section-label">HELLO, TANGERINE.</span><button id="closeAbout" aria-label="Close" class="close-button"><svg><use href="#close"/></svg></button></div><h2 id="aboutTitle">Sequences in slow light.</h2>
     <p>Tangerine is Loopra's electric sibling, in the spirit of the sequencer music of the seventies. Short patterns of different lengths turn on one clock and keep meeting in new places. Above them a conductor holds a chord for a few bars, moves to a neighbour that keeps notes in common, and now and then travels to another key through a shared chord or a held note. No drums: the accents of the sequences are the rhythm.</p>
     <dl>
@@ -151,13 +154,13 @@
       <div><dt>Reverb (dry–wet, room size), Motion</dt><dd>How much reverb, so how far away the layers stand, how big the rooms are, and how much the filters, note lengths, tuning and levels turn on their own slow loops.</dd></div>
       <div><dt>The strands</dt><dd>Twelve layers: bass sequence, arpeggio, high motif, pad, bells, low strings (bowed), a counter sequence in dotted eighths against the sixteenths, a long lead with a long echo, a drone on the home note, high strings above the pad, a slow melody that comes back after long rests, and an echo pulse of quarter notes. Each has its sound, its envelope (attack, decay, sustain, release and gate: how long a note is held) and its echo, timed to the tempo. Echoes always fade, however high the repeats are set.</dd></div>
       <div><dt>Layers change</dt><dd>Now and then one layer rests and another comes in, on a chord change: as many layers as you switched on keep playing, the bass included. Silences come and go, and every layer gets its turn.</dd></div>
-      <div><dt>Restart and full screen</dt><dd>The round arrow next to Pause starts again from zero, with a new seed, key, mode and harmony; your layers, sounds and tempo stay. The corner button of the vine (or a double click) shows it full screen; Esc leaves.</dd></div>
+      <div><dt>New journey, restart and full screen</dt><dd>New journey draws a new seed, keeping your harmony, settings and listening timer. The round arrow next to Pause starts again from zero, with a new seed, key, mode and harmony; your layers, sounds and tempo stay. The corner button of the vine (or a double click) shows it full screen; Esc leaves.</dd></div>
       <div><dt>Headphones · solo</dt><dd>Listen to one layer alone, even one that is switched off. Click the same headphones again to return to your mix.</dd></div>
-      <div><dt>Record</dt><dd>Records what you hear as a WAV file and, at the same time, the notes as a MIDI file: one track per layer, exactly on the grid, with the tempo.</dd></div>
+      <div><dt>Keep &amp; Record</dt><dd>Recover a recent passage downloads up to the last 20 minutes, as sound and notes. The local download records audio directly to the Recordings folder until you stop, in consecutive one-hour WAV files. Recording another Chrome tab captures its audio only; no MIDI or video is saved.</dd></div>
       <div><dt>MIDI out</dt><dd>Plays the notes live on another app or synthesizer. With "MIDI only", Tangerine becomes a silent sequencer.</dd></div>
     </dl>
     <p class="about-note">All sound is synthesized here. No account, samples, downloads or tracking. The same seed and settings always give the same vine.</p><button id="aboutDone" class="renew-button">Back to listening <span>↗</span></button></dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="./app.js?v=12"></script>
+  <script type="module" src="./app.js?v=130"></script>
 </body>
 </html>

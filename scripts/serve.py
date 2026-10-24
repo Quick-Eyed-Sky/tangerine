@@ -12,9 +12,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
+from recording_store import RecordingStore
 
 IDENTITY_PATH = '/__tangerine__/identity'
-SERVER_VERSION = 1
+SERVER_VERSION = 2
 
 
 def identity_for(root):
@@ -47,7 +48,7 @@ def matching_server(port, identity):
         return False
 
 
-def handler_for(root, identity):
+def handler_for(root, identity, recordings):
     class Handler(SimpleHTTPRequestHandler):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, directory=str(root / 'dist'), **kwargs)
@@ -68,6 +69,67 @@ def handler_for(root, identity):
                 self.end_headers()
                 return BytesIO(data)
             return super().send_head()
+
+        def _json(self, code, value):
+            data = json.dumps(value).encode()
+            self.send_response(code)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_GET(self):
+            parts = urllib.parse.urlsplit(self.path)
+            if parts.path == '/__tangerine__/recordings':
+                return self._json(200, {'available': True, 'folder': str(recordings.folder)})
+            if parts.path.startswith('/__tangerine__/recordings/'):
+                route = parts.path.split('/')
+                try:
+                    if len(route) != 6 or route[4] != 'files': raise KeyError()
+                    path = recordings.download(route[3], urllib.parse.unquote(route[5]))
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'audio/wav')
+                    self.send_header('Content-Disposition', f'attachment; filename="{path.name}"')
+                    self.send_header('Content-Length', str(path.stat().st_size))
+                    self.end_headers()
+                    with path.open('rb') as stream:
+                        import shutil
+                        shutil.copyfileobj(stream, self.wfile)
+                    return
+                except (KeyError, OSError): return self._json(404, {'error': 'Recording not found.'})
+            return super().do_GET()
+
+        def do_POST(self):
+            # Local API: reject cross-origin writes and all unexpected body types.
+            host = self.headers.get('Host', '')
+            expected = {f'127.0.0.1:{self.server.server_port}', f'localhost:{self.server.server_port}'}
+            if host not in expected:
+                return self._json(403, {'error': 'Use the local loopback address.'})
+            origin = self.headers.get('Origin')
+            if origin and origin != 'http://' + self.headers.get('Host', ''):
+                return self._json(403, {'error': 'This recording must be started from this local Tangerine tab.'})
+            parts = urllib.parse.urlsplit(self.path)
+            route = parts.path.split('/')
+            try:
+                size = int(self.headers.get('Content-Length', '0'))
+                if not 0 < size <= 2_000_000: raise ValueError('Invalid request size.')
+                kind = self.headers.get('Content-Type', '').split(';')[0]
+                if kind not in ['application/json', 'application/octet-stream']: raise ValueError('Invalid content type.')
+                data = self.rfile.read(size)
+                if route == ['', '__tangerine__', 'recordings', 'start'] and kind == 'application/json':
+                    options = json.loads(data)
+                    return self._json(201, recordings.start(options.get('sampleRate'), options.get('source'), options.get('seed')))
+                if len(route) == 5 and route[1:3] == ['__tangerine__', 'recordings']:
+                    sid, action = route[3:5]
+                    if action == 'chunk' and kind == 'application/octet-stream':
+                        sequence = int(urllib.parse.parse_qs(parts.query)['sequence'][0])
+                        return self._json(200, recordings.append(sid, sequence, data))
+                    if action == 'stop' and kind == 'application/json':
+                        return self._json(200, recordings.stop(sid))
+                return self._json(404, {'error': 'Unknown recording action.'})
+            except KeyError: return self._json(404, {'error': 'Recording not found.'})
+            except (ValueError, TypeError) as error: return self._json(400, {'error': str(error)})
+            except OSError: return self._json(507, {'error': 'The Mac could not write the recording. Check free disk space and folder permissions.'})
 
         def list_directory(self, path):
             self.send_error(404, 'Not found')
@@ -92,7 +154,7 @@ def reopen(port, identity, open_browser):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parent.parent)
-    parser.add_argument('--port', type=int, default=4250)
+    parser.add_argument('--port', type=int, default=4350)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--open', dest='open_browser', action='store_true')
     mode.add_argument('--no-open', dest='open_browser', action='store_false')
@@ -109,10 +171,11 @@ def main():
     for port in range(args.port, args.port + 32):
         if matching_server(port, identity):
             return reopen(port, identity, args.open_browser)
+    recordings = RecordingStore(root / 'Recordings')
     server = None
     for port in range(args.port, args.port + 32):
         try:
-            server = ThreadingHTTPServer(('127.0.0.1', port), handler_for(root, identity))
+            server = ThreadingHTTPServer(('127.0.0.1', port), handler_for(root, identity, recordings))
             break
         except OSError:
             # Another launch can finish between the initial scan and bind().
@@ -123,7 +186,7 @@ def main():
         return 1
     server.daemon_threads = True
     url = launch_url(port, identity)
-    print(f'\n  Tangerine {identity["version"]} — sequences in slow light\n\n  {url}\n\n  Keep this Terminal window open while you listen.\n  Close it, or press Ctrl+C, to stop Tangerine.\n', flush=True)
+    print(f'\n  Tangerine {identity["version"]} — local studio\n\n  {url}\n\n  Keep this Terminal window open while you listen.\n  Close it, or press Ctrl+C, to stop Tangerine.\n', flush=True)
     if args.open_browser:
         opener = threading.Timer(0.35, lambda: webbrowser.open(url))
         opener.daemon = True
@@ -133,6 +196,7 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        recordings.close()
         server.server_close()
     return 0
 

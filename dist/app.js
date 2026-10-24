@@ -1,10 +1,11 @@
+import { initStudio } from './studio.js';
 import { TangerineAudio, renderOffline, renderNotes, MAX_RENDER_MINUTES, encodeWav, LAYER_IDS, SOUNDS, DIVISIONS, DIVISION_LABEL, DEFAULT_LAYERS, DEFAULT_GLOBAL, ENVELOPE_LIMITS, KEEP_SECONDS, ECHO_MAX } from './audio.js?v=12';
 import { LAYERS, SEQ_IDS, HOLD_IDS } from './engine.js';
 import { chordName, keyName, MODULATION_LABEL, METHOD_LABEL, KEY_NAMES, MODES, MODE_WEIGHT } from './theory.js';
 
 const $ = (id) => document.getElementById(id);
-const storageKey = 'tangerine.setup.v1';
-const VERSION = '1.2.0';
+const storageKey = 'tangerine.setup.v1.3';
+const VERSION = '1.3.0';
 const COLORS = {
   bass: '#f28a2e', arp: '#ffc77d', motif: '#ff6a4d', pad: '#c9581c', bells: '#f7ead2',
   cello: '#d0703a', seq2: '#ffa24a', lead: '#ff8a70', drone: '#b0683e', air: '#ffdcae',
@@ -15,12 +16,12 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 const RECOLOR = [0, 64, 32];
 const ROTATE = [0, 32, 16];
-const DEFAULT_ENGINE = { key: { tonic: 2, mode: 'dorian' }, complexity: 1, wander: 1, changes: 8, pedal: 0, evolution: 0.7, renew: 32, recolor: 64, rotate: 32, lengths: { bass: 16, arp: 12, motif: 7, seq2: 10, pulse: 5 } };
+const DEFAULT_ENGINE = { key: { tonic: 6, mode: 'lydian' }, complexity: 0.58, wander: 0.35, changes: 6, pedal: 0.56, evolution: 1, renew: 32, recolor: 32, rotate: 32, lengths: { bass: 16, arp: 12, motif: 7, seq2: 10, pulse: 5 } };
 const freshSettings = () => ({
   seed: (Math.random() * 4294967296) >>> 0,
   salt: 0,
   engine: JSON.parse(JSON.stringify(DEFAULT_ENGINE)),
-  global: { ...DEFAULT_GLOBAL },
+  global: { ...DEFAULT_GLOBAL, bpm: 60, drift: 1 },
   layers: JSON.parse(JSON.stringify(DEFAULT_LAYERS)),
   form: { thread: false, minutes: 10 },
 });
@@ -57,7 +58,7 @@ function readSetup(value) {
   if (!['complexity', 'wander', 'pedal', 'evolution'].every((n) => unitOk(e[n]))) return null;
   if (!Number.isInteger(e.changes) || e.changes < 0 || e.changes > 12 || !RENEW.includes(e.renew) || !RECOLOR.includes(e.recolor) || !ROTATE.includes(e.rotate)) return null;
   if (!LAYERS.filter((l) => l.kind === 'seq').every((l) => l.lengths.includes(e.lengths[l.id]))) return null;
-  if (!(v.global.bpm >= 60 && v.global.bpm <= 140) || !['volume', 'wet', 'space', 'motion', 'drift'].every((n) => unitOk(v.global[n]))) return null;
+  if (!(v.global.bpm >= 6 && v.global.bpm <= 140) || !['volume', 'wet', 'space', 'motion', 'drift'].every((n) => unitOk(v.global[n]))) return null;
   if (!Number.isInteger(v.seed) || v.seed < 0 || v.seed > 4294967295) return null;
   for (const id of LAYER_IDS) {
     const l = v.layers[id];
@@ -70,7 +71,7 @@ function readSetup(value) {
 
 let settings = freshSettings();
 try {
-  settings = readSetup(JSON.parse(localStorage.getItem(storageKey))) || settings;
+  settings = readSetup(JSON.parse(localStorage.getItem(storageKey) || localStorage.getItem('tangerine.sol.setup.v1'))) || settings;
 } catch { /* A new journey is drawn. */ }
 
 const snapshot = () => ({ format: 'tangerine-setup', version: 3, app: VERSION, ...JSON.parse(JSON.stringify(settings)) });
@@ -124,6 +125,16 @@ for (const slider of sliders) {
   });
 }
 
+function syncThreadLength() {
+  const minimum = 48 / settings.global.bpm;
+  const allowed = THREAD_MINUTES.filter((n) => n >= minimum);
+  if (!allowed.includes(settings.form.minutes)) settings.form.minutes = allowed[0];
+  for (const option of $('threadMinutes').options) option.disabled = Number(option.value) < minimum;
+  $('threadMinutes').value = String(settings.form.minutes);
+  $('formReadout').textContent = settings.form.thread ? `${settings.form.minutes} MIN THREAD` : 'ENDLESS';
+  $('slowTempoHint').hidden = settings.global.bpm >= 16;
+  $('slowTempoHint').textContent = `Very slow tempo: a timed thread needs at least twelve bars (${Math.ceil(minimum * 10) / 10} minutes at this tempo). Shorter lengths are unavailable. Echo delay keeps its existing 3.9-second maximum.`;
+}
 function renderControls() {
   for (const slider of sliders) {
     const value = slider.get();
@@ -151,6 +162,8 @@ function renderControls() {
     ? `${on} of ${LAYER_IDS.length} keep playing. Switch layers on or off to change how many.`
     : 'Each layer stays as you set it.';
   $('newJourney').disabled = !!audio.recording;
+  syncThreadLength();
+  window.dispatchEvent(new Event('tangerine:controls'));
 }
 
 function changeKey() {
@@ -226,7 +239,7 @@ $('newJourney').addEventListener('click', () => {
   travelling = null;
   renderTrail();
   renderControls();
-  notify(audio.playing ? 'A new journey begins with the next note.' : 'A new journey is ready.');
+  notify(audio.playing ? 'New seed; your harmony and settings stay. The next note starts the new journey.' : 'New seed ready; your harmony and settings stay.');
   persist();
 });
 
@@ -272,7 +285,7 @@ for (const def of LAYERS) {
       <button class="solo-button" type="button" aria-pressed="false" aria-label="Listen to ${def.name} only" title="Listen to ${def.name} only"><svg aria-hidden="true"><use href="#headphones"/></svg></button>
       <button class="switch" type="button" role="switch" aria-label="${def.name}">ON</button>
     </div>
-    <div class="layer-fields"><label>Sound<select data-field="sound">${soundOptions}</select></label>${lengthField}</div>
+    <button class="edit-layer" type="button" aria-expanded="false" aria-controls="edit-${id}">Edit sound &amp; shape <span>+</span></button><div id="edit-${id}" class="layer-fields"><label>Sound<select data-field="sound">${soundOptions}</select></label>${lengthField}</div>
     <label class="slider-label"><span>Level</span><output data-out="level"></output></label><input type="range" min="0" max="100" data-field="level">
     <details><summary>SHAPE &amp; ECHO</summary>
       <div class="mini-grid">${envelope}</div>
@@ -313,6 +326,11 @@ for (const def of LAYERS) {
       persist();
     });
   }
+  card.querySelectorAll('input[type="range"]').forEach((input, index) => {
+    const label = input.previousElementSibling;
+    input.id = `layer-${id}-${index}`;
+    if (label?.tagName === 'LABEL') { label.htmlFor = input.id; input.setAttribute('aria-label', `${label.querySelector('span')?.textContent || 'Parameter'} — ${def.name}`); }
+  });
   cards[id] = { card, ring: card.querySelector('.ring'), info: card.querySelector('[data-info]'), def, lastSig: '' };
 }
 
@@ -556,6 +574,8 @@ function renderTransport() {
   $('transport').querySelector('use').setAttribute('href', playing ? '#pause' : '#play');
   $('transportText').textContent = playing ? 'Pause' : finished ? 'Play the thread again' : elapsed > 0 ? 'Carry on' : settings.form.thread ? 'Start the thread' : 'Start the vine';
   $('transportDot').classList.toggle('playing', playing);
+  $('focusPlay').textContent = playing ? 'Pause' : 'Play';
+  $('focusPlay').setAttribute('aria-pressed', String(playing));
   $('sourceName').textContent = settings.form.thread ? `A thread of ${settings.form.minutes} minutes · seed ${settings.seed}` : 'Sequences · one moving harmony';
   const anyOn = LAYER_IDS.some((id) => settings.layers[id].on);
   const solo = audio.solo ? cards[audio.solo].def.name : null;
@@ -564,8 +584,8 @@ function renderTransport() {
     : settings.global.volume === 0 ? 'Volume is at zero.'
       : playing ? (audio.engine.ending && audio.engine.stepIndex >= audio.engine.ending.finalStart ? 'The thread is closing: the layers are leaving.' : 'The sequences are turning.')
         : finished ? 'The thread is complete.' : elapsed > 0 ? 'Paused. The vine will wait.' : 'Ready when you are.';
-  $('recordButton').setAttribute('aria-pressed', String(!!audio.recording));
-  $('recordText').textContent = audio.recording ? 'Stop and keep' : 'Record from now';
+  $('recordPassageButton').setAttribute('aria-pressed', String(!!audio.recording));
+  $('memoryRecordText').textContent = audio.recording ? 'Stop and keep' : 'Record a passage';
   $('formEndless').setAttribute('aria-checked', String(!settings.form.thread));
   $('formThread').setAttribute('aria-checked', String(settings.form.thread));
   $('threadMinutes').value = String(settings.form.minutes);
@@ -626,19 +646,52 @@ $('restart').addEventListener('click', (e) => { e.currentTarget.blur(); restart(
 // The vine, full screen (Esc leaves it; a double click too).
 const vineFrame = $('vineFrame');
 const fullElement = () => document.fullscreenElement || document.webkitFullscreenElement;
+let focusHome = null;
+let focusSibling = null;
+let previousFocus = null;
+function leaveFocus() {
+  if (!vineFrame.classList.contains('is-focused')) return;
+  vineFrame.classList.remove('is-focused');
+  document.body.classList.remove('focus-active');
+  document.querySelector('.app-shell').inert = false;
+  document.querySelector('.mobile-nav').inert = false;
+  focusHome.insertBefore(vineFrame, focusSibling);
+  previousFocus?.focus();
+  onFullscreen();
+}
+function enterFocus() {
+  previousFocus = document.activeElement;
+  focusHome = vineFrame.parentNode;
+  focusSibling = vineFrame.nextSibling;
+  document.body.append(vineFrame);
+  vineFrame.classList.add('is-focused');
+  document.body.classList.add('focus-active');
+  document.querySelector('.app-shell').inert = true;
+  document.querySelector('.mobile-nav').inert = true;
+  $('fullscreen').focus();
+  onFullscreen();
+}
 function toggleFullscreen() {
-  if (fullElement()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-  else (vineFrame.requestFullscreen || vineFrame.webkitRequestFullscreen).call(vineFrame);
+  if (vineFrame.classList.contains('is-focused')) { leaveFocus(); return; }
+  if (fullElement()) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+  const mobile = window.innerWidth <= 740 || document.body.classList.contains('preview-phone');
+  const native = vineFrame.requestFullscreen || vineFrame.webkitRequestFullscreen;
+  if (mobile || !native) { enterFocus(); return; }
+  try { const result = native.call(vineFrame); result?.catch(() => enterFocus()); }
+  catch { enterFocus(); }
 }
 $('fullscreen').addEventListener('click', (e) => { e.currentTarget.blur(); toggleFullscreen(); });
 canvas.addEventListener('dblclick', toggleFullscreen);
 const onFullscreen = () => {
-  const on = fullElement() === vineFrame;
+  const on = fullElement() === vineFrame || vineFrame.classList.contains('is-focused');
   $('fullscreen').querySelector('use').setAttribute('href', on ? '#shrink' : '#expand');
-  $('fullscreen').setAttribute('aria-label', on ? 'Leave full screen' : 'Show the vine full screen');
+  $('fullscreen').setAttribute('aria-label', on ? 'Back to the studio' : 'Show the score full screen');
+  $('fullscreen').title = on ? 'Back to the studio (Esc)' : 'Full-screen animated score';
 };
 document.addEventListener('fullscreenchange', onFullscreen);
 document.addEventListener('webkitfullscreenchange', onFullscreen);
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape') leaveFocus(); });
+$('focusPlay').addEventListener('click', toggle);
 document.addEventListener('keydown', (event) => {
   if (event.code !== 'Space' || event.repeat) return;
   if (event.target.closest('input, select, textarea, button, summary, dialog')) return;
@@ -753,7 +806,7 @@ function renderTakes() {
   $('takes').innerHTML = takes.map((t) => `<li><strong title="${t.base}">${t.label} · ${time(t.seconds)}</strong>${t.wav ? `<a href="${t.wav}" download="${t.base}.wav" title="${sizeOf(t.wavSize)}">WAV</a>` : ''}<a href="${t.midi}" download="${t.base}.mid">MIDI</a><a class="abc" href="${t.abc}" download="${t.base}.abc" title="The full score: one voice per layer that played">ABC</a>${t.lead ? `<a class="abc" href="${t.lead}" download="${t.base}_leadsheet.abc" title="Melody and chord symbols, for YuE2 (--abc-file)">LEAD</a>` : ''}</li>`).join('');
 }
 
-const keepLabel = { 30: 'Last 30 s', 60: 'Last minute', 120: 'Last 2 min', 300: 'Last 5 min', 600: 'Last 10 min', 1200: 'Last 20 min', all: 'Since the start' };
+const keepLabel = { 30: 'Last 30 s', 60: 'Last minute', 120: 'Last 2 min', 300: 'Last 5 min', 600: 'Last 10 min', 1200: 'Last 20 min', all: 'Available memory (max 20 min)' };
 const keepSuffix = { 30: 'last30s', 60: 'last1min', 120: 'last2min', 300: 'last5min', 600: 'last10min', 1200: 'last20min', all: 'sincestart' };
 const names = () => ({ title: 'Tangerine', subtitle: `seed ${settings.seed} · ${new Date().toLocaleString()}` });
 
@@ -774,14 +827,14 @@ $('keepButton').addEventListener('click', async () => {
 });
 
 async function finishRecording() {
-  $('recordText').textContent = 'Saving…';
+  $('memoryRecordText').textContent = 'Saving…';
   const result = await audio.stopRecording(names());
   if (!result) return;
   addTake(result, 'take', 'Take');
   notify('Take kept: WAV, MIDI and ABC, just below.');
 }
 
-$('recordButton').addEventListener('click', async () => {
+$('recordPassageButton').addEventListener('click', async () => {
   try {
     if (audio.recording) await finishRecording();
     else {
@@ -805,7 +858,7 @@ async function onThreadEnd(item) {
   if (audio.playing) { await audio.pause(); elapsed += (performance.now() - startedAt) / 1000; startedAt = null; }
   if (result) {
     addTake({ ...result, began: new Date(Date.now() - result.seconds * 1000) }, `thread${item.thread.minutes}min`, `Thread ${item.thread.minutes} min`);
-    notify('The thread is complete. It is kept whole, just under Keep.');
+    notify(result.seconds + 1 < item.thread.minutes * 60 ? 'Thread complete. The available ending (up to 20 minutes) is under recent passages.' : 'Thread complete. Its download links are under recent passages.');
   }
   renderTransport();
 }
@@ -860,6 +913,7 @@ $('setupFile').addEventListener('change', async (event) => {
   try {
     const loaded = readSetup(JSON.parse(await file.text()));
     if (!loaded) throw new Error();
+    if (window.tangerine.diskRecorder?.active && window.tangerine.diskRecorder.sourceName === 'This vine') { notify('Stop the disk recording before loading another setup.'); return; }
     if (audio.recording) await finishRecording();
     const wasPlaying = audio.playing;
     if (wasPlaying) await audio.pause();
@@ -905,8 +959,8 @@ function frame() {
     stopping = true;
     finishRecording().then(() => { stopping = false; notify('Takes stop at 30 minutes. This one is kept, just below.'); renderTransport(); });
   }
-  if (audio.recording) $('recordTime').textContent = time(audio.recordingSeconds);
-  else if ($('recordTime').textContent !== '0:00' && !audio.recording) $('recordTime').textContent = '0:00';
+  if (audio.recording) $('memoryRecordTime').textContent = time(audio.recordingSeconds);
+  else if ($('memoryRecordTime').textContent !== '0:00' && !audio.recording) $('memoryRecordTime').textContent = '0:00';
   const positions = audio.engine.positions(currentStep());
   for (const id of SEQ_IDS) drawRing(id, positions[id]);
   for (const id of LAYER_IDS) if (!SEQ_IDS.includes(id)) drawRing(id, null, audio.engine.harmony);
@@ -945,3 +999,6 @@ renderKeyReadout();
 renderSolo();
 requestAnimationFrame(frame);
 window.tangerine = { get audio() { return audio; }, get settings() { return settings; } };
+
+const studio = initStudio({ getAudio: () => audio, notify });
+window.tangerine.diskRecorder = studio.recorder;

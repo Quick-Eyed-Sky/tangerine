@@ -1,76 +1,61 @@
-# Tangerine — mode d'emploi
+# Tangerine 1.3 — guide français
 
-Version 1.2.0, 24 octobre 2026. La petite sœur électrique de Loopra : une liane sans fin de séquences et d'harmonies lentes, dans l'esprit de la musique à séquenceurs des années 70. Pas de batterie : les accents des séquences font le rythme.
+Tangerine fabrique dans le navigateur des séquences électroniques qui évoluent lentement autour d'une harmonie commune. Les douze layers partagent une horloge. Les notes, accords, timbres et règles de synthèse restent ceux de la version 1.2.
 
-Les règles musicales sont expliquées dans le document « Tangerine — grammaire des séquences et des modulations » (dans le projet Claude).
+## Écouter
 
-## Lancer
+Ouvrir la [démo](https://quick-eyed-sky.github.io/tangerine/) et toucher **Start the vine**. Chrome sur ordinateur offre le plus de fonctions. Sur iPhone, vérifier le mode silencieux et le volume multimédia en cas de silence. L'interface adaptée aux téléphones ne constitue pas une garantie de lecture écran verrouillé ou en arrière-plan.
 
-Double-clic sur **`Tangerine.command`**. Chrome s'ouvre sur `http://127.0.0.1:4250` (Loopra garde ses propres ports). Garder la fenêtre du Terminal ouverte pendant l'écoute. Barre d'espace : lecture / pause. La flèche ronde à côté de *Pause* (**Restart**) repart de zéro avec une nouvelle graine, une nouvelle tonalité, un nouveau mode et de nouveaux réglages d'harmonie ; les couches, leurs sons et le tempo restent. Le bouton dans le coin de la liane (ou un double-clic dessus) la met en **plein écran**, avec l'accord en grand ; Échap pour sortir, la barre d'espace marche toujours.
+Pour la copie locale, télécharger `Tangerine-v1.3.0.zip`, le décompresser et garder tout le dossier. Python 3 est nécessaire, sans paquet à installer. Sur Mac : double-cliquer **Tangerine.command**. Sur macOS/Linux : `./run.sh`. Le serveur utilise un port local libre à partir de 4350 ; laisser sa fenêtre Terminal ouverte.
 
-## Ce qu'on règle
+## Se repérer
 
-Chaque curseur a sa ligne d'explication dans l'appli. En bref :
+Sur grand écran : composition à gauche, partition animée et layers au centre, espace et sauvegarde à droite. Sur portable, la partie droite suit les layers. Sur téléphone : **Play**, **Compose**, **Keep & Record**. Le changement de vue ne redémarre pas la musique.
 
-| Réglage | Ce qu'il fait |
-| --- | --- |
-| **Tempo** | 60 à 140 BPM. Tout suit : séquences, échos, MIDI enregistré. |
-| **La forme** | *Endless* : ne s'arrête jamais, comme Loopra. *A thread of N min* (de 3 minutes à 2 heures) : un fil qui part du début, rentre à la maison 24 mesures avant la fin, garde l'accord de tonique pendant les 8 dernières mesures pendant que les couches partent une à une, puis la nappe s'éteint. Le fil est gardé en entier automatiquement à la fin. *Make the thread as files* fabrique le même fil hors-ligne et donne WAV, MIDI et ABC. Au-delà de 20 minutes, le son serait trop lourd pour la mémoire du navigateur : à la fin du fil, Tangerine garde les 20 dernières minutes en son, et le bouton devient *Make the thread as notes* (MIDI et ABC du fil entier, en quelques secondes). *Record from now* s'arrête de lui-même à 30 minutes et garde la prise. |
-| **Key, Mode** | Où vit la liane. Les changer pendant la lecture : elle y va par le chemin le plus doux (accord pivot ou note commune). |
-| **Random** | Tire une tonalité, un mode et les quatre réglages d'harmonie, et affiche ce qu'il a tiré. |
-| **Harmonic richness** | La couleur de chaque accord : quintes et accords suspendus → triades → septièmes et 6/9 → neuvièmes et onzièmes. Ne change pas la tonalité. |
-| **Key changes** | Combien de fois la tonalité et le mode changent : par tranche de 10 minutes, ou dans tout le fil (plus le retour à la maison). À 0, on ne bouge pas. |
-| **Distance** | Jusqu'où va chaque changement : un autre mode sur les mêmes notes, le relatif, la quinte… jusqu'aux médiantes chromatiques. |
-| **Held bass** | Combien de fois la basse garde la note de la maison (pédale) pendant que les accords bougent. À 0 (par défaut), elle suit l'harmonie. |
-| **Evolution** | Toutes les quelques dizaines de passages, une séquence change un détail (note, octave, accent). Jamais deux à la fois. 70 = l'ancien maximum. |
-| **New sequences** | Le bouton redessine toutes les séquences (et le thème de la mélodie lente), l'harmonie reste. *By themselves* : toutes les 32 mesures par défaut (ou 64, 128, ou jamais), sur un changement d'accord. |
-| **Slow change** | Longueur des notes, échos, brillance, niveaux, richesse, distance et basse tenue dérivent lentement autour de leurs réglages, chacun sur sa vague de quelques minutes (à 80 BPM, 4 à 20 minutes par aller-retour). |
-| **Sounds change** | *Now and then* (par défaut) : environ toutes les 64 mesures, une couche prend une autre de ses variantes de son, sur un changement d'accord ; sa carte l'affiche. *Often* : toutes les 32 mesures environ. *Never* : chaque couche garde son son. |
-| **Layers change** | *Now and then* (par défaut) : environ toutes les 32 mesures, sur un changement d'accord, une couche se repose et une autre entre (en fondu). Le nombre de couches allumées reste le même : c'est toi qui le choisis en allumant ou éteignant des couches (« 9 of 12 keep playing »). Toutes y passent, la basse comprise : des respirations. *Often* : toutes les 16 mesures environ. *Never* : les couches restent comme tu les as mises. |
-| **Reverb · dry–wet, Room size** | La réverbération : quelle part de chaque couche part dans la salle (les couches proches restent plus sèches), et la taille de la salle. |
-| **Motion** | Le son respire : filtres, accord, niveau. Les notes ne changent pas. 70 = l'ancien maximum. |
+Lecture/Pause et volume restent accessibles pendant le défilement. **Show tips** affiche les explications. Les groupes se replient. Sur téléphone, **Edit sound & shape** ouvre les paramètres d'un layer. Les écouteurs servent à écouter ce layer seul.
 
-## Les douze couches
+Le bouton dans la partition ouvre le plein écran, en portrait ou paysage. Lecture/Pause et retour au studio restent disponibles. Le trait vertical orange marque l'instant présent : les notes apparaissent à cet endroit et défilent vers la gauche.
 
-| Couche | Ce qu'elle joue | Par défaut |
-| --- | --- | --- |
-| **Bass sequence** | La séquence de basse, 16 doubles croches (son Moog adouci, gate 27 %). | allumée |
-| **Arpeggio** | L'arpège, 12 pas. | allumée |
-| **High motif** | Le motif aigu, 7 croches. | allumée |
-| **Pad** | La nappe : les notes communes ne sont pas rejouées. | allumée |
-| **Bells** | Six cloches, chacune à sa période. | allumée |
-| **Low strings** | Un violoncelle à l'archet, grave : une note de l'accord par accord, une deuxième au milieu des accords longs. | allumée |
-| **Counter sequence** | Une contre-séquence en croches pointées, grave-aigu en alternance : elle tourne à une autre vitesse que la basse (deux séquenceurs qui ne vont pas au même pas). | allumée |
-| **Long lead** | Des notes longues et des silences, sur un long écho d'une mesure (façon « boucle de bande » à la Fripp ou Pinhas). | allumée |
-| **Drone** | Le bourdon sur la note de la maison (et sa quinte), seulement quand il ne frotte pas avec l'accord. | éteinte |
-| **High strings** | Des violons aigus, une octave au-dessus des deux notes du haut de la nappe. | éteinte |
-| **Slow melody** | Un thème court de 4 à 6 notes (flûte de bande façon Mellotron), chanté puis suivi de 2 à 8 mesures de silence, et qui revient, parfois avec une note changée. Il suit les accords. | allumée |
-| **Echo pulse** | Une note par noire, presque toujours jouée, que l'écho en croche pointée remplit : la pulsation qui ricoche. 5 noires par défaut (3 à 9). | éteinte |
+## Tempo et départ
 
-Sur chaque carte : **ON/OFF**, le **casque** (écouter cette couche seule, même éteinte ; re-cliquer ou *Return to the mix* pour revenir), le son, le niveau, et sous *Shape & echo* : attaque, déclin, maintien, relâchement, *gate*, écho au tempo (durée, répétitions, niveau). Les répétitions d'écho s'éteignent toujours, même à 100 % : la boucle perd un peu à chaque passage et sature doucement, comme une bande.
+Le tempo va de **6 à 140 BPM**, avec **60 BPM par défaut**. À 6 BPM, un temps dure dix secondes. Le moteur conserve un minimum de douze mesures pour un morceau à durée fixe : les durées trop courtes sont indisponibles aux tempos très lents. Les échos gardent leur plafond existant de 3,9 secondes.
 
-## Garder ce qu'on vient d'entendre
+Les réglages initiaux sont F♯ lydien, richesse 58, six changements de tonalité par dix minutes, distance 35, basse tenue 56, évolution 100 et dérive 100. Séquences, sons et rotation des layers peuvent changer environ toutes les 32 mesures. Les autres valeurs initiales restent celles de 1.2. Les réglages sont ensuite mémorisés dans le navigateur.
 
-Tangerine se souvient en permanence des **20 dernières minutes**. Un passage t'a plu ? Choisis *The last 30 seconds* … *The last 20 minutes* ou *Since the start*, puis **Keep**. Ou *Record from now* puis *Stop and keep*.
+## New journey ou redémarrage ?
 
-Chaque passage donne quatre fichiers, à télécharger sous le bouton :
+**New journey**, près de la lecture, tire une nouvelle seed et de nouveaux motifs. Il garde tes réglages d'harmonie, le tempo, les réglages des layers et le compteur d'écoute.
 
-- **WAV** : le son, 48 kHz, 16 bits, stéréo (ce que tu entends, solo compris).
-- **MIDI** : une piste par couche allumée, pile sur la grille, avec le tempo. Canaux : basse 1, arpège 2, motif 3, nappe 4, cloches 5, violoncelle 6, contre-séquence 7, lead 8, bourdon 9, violons 11, mélodie lente 12, echo pulse 13 (le 10 est réservé aux percussions en General MIDI). Les notes tenues (nappe, bourdon, violons) le restent d'un accord à l'autre.
-- **ABC** : la partition en texte, une voix par couche qui a joué, avec l'armure de chaque tonalité traversée.
-- **LEAD** : une partition ABC réduite, la mélodie (le motif aigu, ou l'arpège) avec les noms d'accords. C'est le format que YuE2 sait lire comme plan (`--abc-file chemin.abc --cot full`, avec un style et des paroles). Garder alors un passage court : YuE2 plafonne vers 4 000 jetons de partition, soit quelques minutes.
+La **flèche ronde de redémarrage** repart de zéro, remet le compteur à zéro et tire aussi une nouvelle tonalité, un mode et des réglages d'harmonie. Le tempo et les réglages des layers restent en place. Si la musique était en pause, ce bouton démarre la lecture.
 
-ACE-Step ne lit pas l'ABC. Il peut en revanche retravailler le **WAV** (cover, repaint, prolonger).
+**New sequences** renouvelle seulement les motifs, en conservant l'harmonie.
 
-## MIDI en direct
+## Récupérer ce qui vient de jouer
 
-*MIDI out* envoie les notes des couches allumées à un autre logiciel ou synthé (Chrome demande l'autorisation). *MIDI only* coupe les sons de Tangerine : elle devient un séquenceur silencieux.
+**Recover a recent passage** regarde en arrière : les dernières secondes ou minutes, jusqu'aux vingt minutes encore en mémoire. **All available (up to 20 min)** ne signifie pas toute une session plus longue depuis son début.
 
-## Réglages enregistrés
+Recover crée des liens WAV, MIDI, ABC et LEAD. Cliquer sur chaque lien pour télécharger le fichier : les liens temporaires ne survivent pas à la fermeture de la page. Sans capture audio disponible, les exports de notes peuvent rester accessibles.
 
-*Save setup* garde tout dans un petit fichier JSON ; *Load setup* le relit. Les réglages des versions précédentes sont repris et convertis (Journeys devient Key changes + Distance, Evolution et Motion passent à la nouvelle échelle, les nouvelles couches prennent leurs valeurs par défaut ; depuis la 1.2, *New sequences* passe à 32 mesures et *Layers change* à *Now and then*).
+## Enregistrer à partir de maintenant
 
-## Pour moi (technique)
+Dans la **démo en ligne**, **Record a passage** enregistre depuis le clic jusqu'à Stop, au maximum trente minutes, en mémoire dans le navigateur. Télécharger ensuite les fichiers sous les passages récents.
 
-- Aucune dépendance. `dist/` contient l'appli ; `npm test` lance les tests (moteur, MIDI, ABC) ; `node tools/render.mjs --minutes 3 --seed 42 --out tools/renders/essai` fabrique un fil hors-ligne avec Chromium.
-- La même graine (seed) et les mêmes réglages donnent toujours la même liane, dérive lente comprise.
+Avec la **copie locale**, **Record to this computer** écrit le son progressivement dans **Recordings/**, à côté du lanceur. Il continue jusqu'à **Stop & finish files**, sans arrêt automatique à trente minutes. Chaque heure se poursuit dans le fichier WAV suivant, avec des données audio consécutives. Le format est WAV stéréo PCM 16 bits. Cette longue capture conserve le son ; elle ne produit pas un MIDI/ABC de toute la session.
+
+Le compteur **written to disk** confirme la durée déjà écrite. Garder l'onglet enregistreur et le Terminal ouverts, le Mac éveillé et assez d'espace sur le disque. Arrêter avec le bouton pour terminer le dernier bloc. La fermeture forcée ou une interruption système peut perdre un bloc non confirmé. Une pause de la musique enregistre du silence jusqu'à la reprise ou l'arrêt de la capture.
+
+### Garder une session déjà ouverte
+
+Ne pas recharger l'onglet qui joue. Ouvrir la copie locale dans le même Chrome, puis choisir **Record an already playing Chrome tab**. Dans le sélecteur Chrome, sélectionner le bon onglet et activer **Partager l'audio de l'onglet**. Aucun microphone ni aucune vidéo n'est enregistré ; seul le son partagé est écrit sur le disque local.
+
+Cela enregistre à partir du début de la capture. Pour conserver le passé de l'ancien onglet, utiliser son propre Keep puis télécharger son WAV.
+
+GitHub Pages sert des fichiers statiques et ne peut pas exécuter le serveur d'enregistrement local. C'est pourquoi la démo propose des passages courts et un lien vers le téléchargement pour l'enregistrement continu.
+
+## Sauvegardes et ancienne version
+
+**Save setup** garde les réglages dans un JSON ; **Load setup** le recharge. Les formats de setup antérieurs pris en charge restent lisibles. Une seed et un réglage de départ reproduisent le même générateur ; les interventions manuelles et leur moment changent une session en direct.
+
+La [release 1.2](https://github.com/Quick-Eyed-Sky/tangerine/releases/tag/v1.2.0), son tag et son téléchargement restent conservés. Une [démo 1.2 archivée](https://quick-eyed-sky.github.io/tangerine/versions/v1.2.0/) reprend les fichiers d'origine sans modification.
+
+Tout le son est produit ou capturé localement. Aucun compte, modèle, service audio externe ou analytique. Licence MIT.

@@ -81,3 +81,15 @@ test('a two-hour thread is written as notes: MIDI and ABC, without sound', async
   assert.ok(tracks[1].filter((e) => e.status === 0x90).length > 10000);
   assert.ok(result.abc.includes('[K:'));
 });
+
+test('6 BPM remains exact in the audio clock and exported MIDI tempo', async () => {
+  const { Graph, renderNotes } = await import('../dist/audio.js');
+  assert.equal(Graph.prototype.stepSeconds.call({ global: { bpm: 6 } }), 2.5);
+  const bytes = writeMidiFile({ tracks: [], tempos: [{ tick: 0, bpm: 6 }] });
+  const tempo = readMidi(bytes).tracks[0].find((event) => event.meta === 0x51);
+  assert.equal(tempo.data[0] * 65536 + tempo.data[1] * 256 + tempo.data[2], 10_000_000);
+  const result = renderNotes({ seed: 7, minutes: 10, global: { bpm: 6 } });
+  assert.ok(Math.abs(result.seconds - 600) < 3);
+  assert.ok(result.abc.includes('Q:1/4=6'));
+  assert.ok(result.midi.length > 200);
+});

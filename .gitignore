@@ -5,3 +5,6 @@ node_modules/
 old versions/
 Ecoute/
 release/
+
+# Audio recorded locally on this Mac
+Recordings/

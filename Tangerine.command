@@ -17,4 +17,4 @@ if [ -d "/Applications/Google Chrome.app" ]; then
   export BROWSER='open -a "Google Chrome" %s'
 fi
 
-exec python3 "$TANGERINE_DIR/scripts/serve.py" --port 4250 --open
+exec python3 "$TANGERINE_DIR/scripts/serve.py" --port 4350 --open

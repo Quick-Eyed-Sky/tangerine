@@ -1,82 +1,49 @@
-# Publication notes
+# Publishing Tangerine 1.3.0
 
-Source, release and browser demo for **[Quick-Eyed-Sky/tangerine](https://github.com/Quick-Eyed-Sky/tangerine)**.
+Repository: Quick-Eyed-Sky/tangerine. Public demo: https://quick-eyed-sky.github.io/tangerine/.
 
-## Repository
+## Preservation
 
-- **Name:** `tangerine`
-- **Description:** An endless vine of electronic sequences and slow tonal harmony, in your browser. Loopra's electric sibling.
-- **Website:** https://quick-eyed-sky.github.io/tangerine/
-- **License:** MIT, as supplied in `LICENSE`.
-- **Suggested topics:** `generative-music`, `sequencer`, `electronic-music`, `web-audio`, `midi`, `javascript`, `browser`.
-- **Language:** English for the interface and documentation; a French guide in `LISEZ-MOI.md`.
+Keep the existing v1.2.0 Git tag, release and assets. Do not force-update or delete them. The 1.3 commit descends from the current main commit. `dist/versions/v1.2.0/` is the unchanged original demo; `docs/versions/` retains the old documentation. Settings for the 1.3 interface use their own storage key, without overwriting the old demo's settings.
 
-## Product scope
-
-Tangerine is a synthesis-only instrument. Twelve layers share one clock and one moving, tonal harmony. Each layer can be switched on or off and heard alone with its headphone button. *Layers change* rests one layer and brings in another now and then, keeping as many on. Passages can be kept as WAV, MIDI and ABC, all made in the browser. There is no account, sample, model download, analytics or external audio service.
-
-## Files to include
-
-- `dist/`: the complete static application. This folder is also the browser demo.
-- `docs/tangerine.png`: a current screenshot; `docs/first-opening.md`.
-- `READ-ME.txt`: first-opening notes, for the download.
-- `scripts/serve.py`, `Tangerine.command`, `run.sh`, `tests/`, `tools/` (without `tools/renders/`), `package.json`.
-- `README.md`, `LISEZ-MOI.md`, `RELEASE.md`, `PUBLISHING.md`, `LICENSE`, `.gitignore`.
-- `.github/workflows/pages.yml`: deploys `dist/` to GitHub Pages.
-
-Keep `old versions/`, `Ecoute/`, `tools/renders/`, `release/`, browser state and personal setup files out of the repository (`.gitignore` already does).
-
-## Before publishing
-
-1. Run `npm run check` and `npm test` (Node.js 20 or later).
-2. Double-click `Tangerine.command` on macOS, or run `./run.sh`. Check that the page opens on `http://127.0.0.1:4250` and the footer shows the new version.
-3. Listen with the default layers and with all twelve. Solo an enabled and a disabled layer, then return to the mix.
-4. Keep a short passage and open its WAV, MIDI and ABC.
-5. Save a setup, change controls, load it again.
-6. Replace `docs/tangerine.png` if the interface changed.
-7. Check that the executable bit is set on `Tangerine.command`, `run.sh` and `scripts/serve.py` (`git ls-files -s` shows `100755`).
-
-## GitHub Pages: the clickable demo
-
-The site is **`dist/`**, not the repository root. The workflow in `.github/workflows/pages.yml` uploads that folder on every push to `main`. Once, after the first push:
-
-1. On GitHub, open **Settings → Pages**.
-2. Under **Build and deployment → Source**, choose **GitHub Actions**.
-3. Open the **Actions** tab, run *Pages demo* (or push again), wait for the green check.
-4. Open https://quick-eyed-sky.github.io/tangerine/ and click **Start the vine**.
-
-The app uses only relative paths, so it works under `/tangerine/`. Web MIDI and audio capture need HTTPS, which Pages provides.
-
-## Commands
-
-From this folder, with Git and a GitHub CLI session signed in as Quick-Eyed-Sky:
+## Checks
 
 ```sh
 npm run check
 npm test
-git init -b main
-git add .
-git status --short
-git commit -m "Tangerine 1.2.0: sequences in slow light"
-gh repo create Quick-Eyed-Sky/tangerine --public --source=. --remote=origin --push \
-  --description "An endless vine of electronic sequences and slow tonal harmony, in your browser. Loopra's electric sibling." \
-  --homepage "https://quick-eyed-sky.github.io/tangerine/"
-gh repo edit Quick-Eyed-Sky/tangerine --add-topic generative-music,sequencer,electronic-music,web-audio,midi,javascript,browser
-gh api -X POST repos/Quick-Eyed-Sky/tangerine/pages -f build_type=workflow
+npm run test:recording
 ```
 
-The last line turns on Pages with GitHub Actions as its source (the same as step 2 above).
+Verify the UI on a large screen, laptop and phone-sized viewport. Test 6 BPM (one sixteenth note every 2.5 seconds), save/load a setup below 60 BPM, New journey versus restart, and full-screen portrait/landscape. The existing engine needs twelve bars for a timed thread, so very short durations are unavailable at slow tempos. Its existing echo delay ceiling is unchanged.
 
-For later versions, commit and push to the existing repository: the demo updates itself.
+Test the hosted mode separately using a static server and `?demo=1`. It must work under `/tangerine/`, without the Python recording API. The toolbar's Record button must start/stop browser passage capture, and the interface must explain the 30-minute limit. Continuous recording is a local-download feature.
 
-## Release
+The local Python launcher must still write readable WAV files to Recordings/ progressively and finalize them on Stop. No recordings, private JSON setups, personal browser state or caches belong in the source or release.
 
-Build the download (the source without development captures), then publish it with the prepared text in [RELEASE.md](RELEASE.md):
+## Screenshot
+
+`docs/tangerine.png` is the current 1.3 desktop screenshot supplied by Jean-Pascal. The previous screenshot is preserved as `docs/versions/v1.2.0-tangerine.png`. Do not include private recordings in release images or assets.
+
+## Package
 
 ```sh
 sh scripts/release.sh
-gh release create v1.2.0 release/Tangerine-v1.2.0.zip release/Tangerine-v1.2.0-SHA256SUMS.txt \
-  --repo Quick-Eyed-Sky/tangerine --title "Tangerine 1.2.0 — sequences in slow light" --notes-file RELEASE.md
 ```
 
-Check the README's download link after the release is online.
+This builds `release/Tangerine-v1.3.0.zip` and `release/Tangerine-v1.3.0-SHA256SUMS.txt`, containing the application, local server, launchers, documentation and tests. It excludes recordings, caches and development captures. Build 1.3 separately; keep any previous release assets intact.
+
+## Publish
+
+1. Commit the verified source to main without rewriting history. The existing Pages workflow uploads dist/.
+2. Wait for the Pages deployment to succeed. Check the footer says v1.3.0 at the public URL, and check the archived 1.2 URL still works.
+3. Create a new GitHub release with tag **v1.3.0**, targeting the verified main commit. Use **Tangerine 1.3.0 — more room to play** as the title and RELEASE.md as its text.
+4. Attach the ZIP and SHA-256 file. Publish it as the latest stable release, leaving v1.2.0 untouched.
+5. Check the README download link, release assets and demo links.
+
+For a configured GitHub CLI session, the release step is:
+
+```sh
+gh release create v1.3.0 release/Tangerine-v1.3.0.zip release/Tangerine-v1.3.0-SHA256SUMS.txt --repo Quick-Eyed-Sky/tangerine --title "Tangerine 1.3.0 — more room to play" --notes-file RELEASE.md
+```
+
+GitHub Pages hosts static files only. Do not advertise the local Python recording API as a hosted feature. The original 1.2 musical, synthesis and export modules are kept byte-identical in 1.3.
