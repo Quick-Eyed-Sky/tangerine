@@ -45,7 +45,9 @@
 
         </div><section class="master-volume"><label class="slider-label" for="volume"><span>Volume</span><output id="volumeValue">60</output></label><input id="volume" type="range" min="0" max="100" value="60"></section><div class="player-actions"><button id="newJourney" class="new-journey-button" type="button" title="New seed and patterns. Keep your harmony, tempo, layer settings and elapsed listening time."><svg aria-hidden="true"><use href="#shuffle"/></svg><span>New journey</span></button><button id="quickRecord" class="quick-record" type="button"><i class="record-light"></i><span>Record</span><span id="quickRecordTime" hidden>0:00</span></button><button id="quickKeep" class="renew-button" type="button">Keep &amp; files <span>↗</span></button></div></section>
     <div class="instrument">
-      <aside class="controls compose-pane" aria-labelledby="composeTitle"><div class="pane-heading"><p class="section-label plain">COMPOSE</p><h2 id="composeTitle">Shape the journey.</h2></div><details class="control-group" id="tempoGroup" open><summary><span>Tempo</span></summary><section class="control-section tempo-section">
+      <aside class="controls compose-pane" aria-labelledby="composeTitle"><div class="pane-heading"><p class="section-label plain">COMPOSE</p><h2 id="composeTitle">Shape the journey.</h2></div><details class="control-group" id="colourGroup" open><summary><span>THE COLOUR</span><span id="colourReadout">SYNTHESIS</span></summary><section class="control-section">
+          <div class="tonality-fields single"><label for="colour">Colour<select id="colour"></select></label></div>
+          <p class="tempo-note" id="colourNote"></p></section></details><details class="control-group" id="tempoGroup" open><summary><span>Tempo</span></summary><section class="control-section tempo-section">
           <label class="slider-label big" for="bpm"><span>Tempo</span><output id="bpmValue">60 <small>BPM</small></output></label>
           <input id="bpm" type="range" min="6" max="140" value="60" step="1">
           <div class="scale-caption"><span>Slow pulse</span><span>Bright</span></div>

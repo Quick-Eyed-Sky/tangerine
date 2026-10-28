@@ -15,6 +15,8 @@ import webbrowser
 from recording_store import RecordingStore
 
 IDENTITY_PATH = '/__tangerine__/identity'
+SAMPLES_PATH = '/__tangerine__/samples'
+AUDIO_SUFFIXES = {'.wav', '.aif', '.aiff', '.flac', '.ogg', '.mp3', '.m4a'}
 SERVER_VERSION = 2
 
 
@@ -36,6 +38,35 @@ def identity_for(root):
         'instance': hashlib.sha256(str(root).encode()).hexdigest(),
         'build': digest.hexdigest(), 'version': version,
     }
+
+
+def sample_index(folder):
+    """Tangerine II: one instrument per folder of samples/, real spaces in samples/_spaces/."""
+    index = {'instruments': {}, 'spaces': {}}
+    if not folder.is_dir():
+        return index
+    def url(path):
+        return '/samples/' + urllib.parse.quote(path.relative_to(folder).as_posix())
+    for entry in sorted(folder.iterdir()):
+        if not entry.is_dir() or entry.name.startswith('.'):
+            continue
+        files = sorted(p for p in entry.rglob('*') if p.is_file() and p.suffix.lower() in AUDIO_SUFFIXES and not p.name.startswith('.'))
+        if entry.name == '_spaces':
+            index['spaces'] = {p.stem.lower(): url(p) for p in files}
+            continue
+        if not files:
+            continue
+        options = {}
+        try:
+            options = json.loads((entry / 'instrument.json').read_text())
+        except (OSError, ValueError):
+            pass
+        index['instruments'][entry.name.lower()] = {
+            'label': options.get('label', entry.name.replace('-', ' ').capitalize()),
+            'gain': options.get('gain', 1),
+            'files': [{'name': p.name, 'url': url(p), 'note': options.get('notes', {}).get(p.name)} for p in files[:96]],
+        }
+    return index
 
 
 def matching_server(port, identity):
@@ -68,7 +99,24 @@ def handler_for(root, identity, recordings):
                 self.send_header('Content-Length', str(len(data)))
                 self.end_headers()
                 return BytesIO(data)
+            if urllib.parse.urlsplit(self.path).path == SAMPLES_PATH:
+                from io import BytesIO
+                data = json.dumps(sample_index(root / 'samples')).encode()
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.send_header('Content-Length', str(len(data)))
+                self.end_headers()
+                return BytesIO(data)
             return super().send_head()
+
+        def translate_path(self, path):
+            # /samples/... comes from the samples folder next to the launcher, never from above it.
+            route = urllib.parse.unquote(urllib.parse.urlsplit(path).path)
+            if route.startswith('/samples/'):
+                folder = (root / 'samples').resolve()
+                target = (folder / route[len('/samples/'):]).resolve()
+                return str(target) if target.is_relative_to(folder) else str(folder / '__outside__')
+            return super().translate_path(path)
 
         def _json(self, code, value):
             data = json.dumps(value).encode()

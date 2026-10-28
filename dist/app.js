@@ -1,6 +1,7 @@
 import { initStudio } from './studio.js';
 import { TangerineAudio, renderOffline, renderNotes, MAX_RENDER_MINUTES, encodeWav, LAYER_IDS, SOUNDS, DIVISIONS, DIVISION_LABEL, DEFAULT_LAYERS, DEFAULT_GLOBAL, ENVELOPE_LIMITS, KEEP_SECONDS, ECHO_MAX } from './audio.js?v=12';
 import { LAYERS, SEQ_IDS, HOLD_IDS } from './engine.js';
+import { BANK, COLOURS, sampledKey, sampledSound, colourSound, colourPool, colourSpace } from './samples.js';
 import { chordName, keyName, MODULATION_LABEL, METHOD_LABEL, KEY_NAMES, MODES, MODE_WEIGHT } from './theory.js';
 
 const $ = (id) => document.getElementById(id);
@@ -24,6 +25,7 @@ const freshSettings = () => ({
   global: { ...DEFAULT_GLOBAL, bpm: 60, drift: 1 },
   layers: JSON.parse(JSON.stringify(DEFAULT_LAYERS)),
   form: { thread: false, minutes: 10 },
+  colour: 'synth',
 });
 
 const THREAD_MINUTES = [3, 5, 8, 10, 15, 20, 30, 45, 60, 90, 120];
@@ -62,11 +64,11 @@ function readSetup(value) {
   if (!Number.isInteger(v.seed) || v.seed < 0 || v.seed > 4294967295) return null;
   for (const id of LAYER_IDS) {
     const l = v.layers[id];
-    if (typeof l.on !== 'boolean' || !unitOk(l.level) || !SOUNDS[id][l.sound]) return null;
+    if (typeof l.on !== 'boolean' || !unitOk(l.level) || !(SOUNDS[id][l.sound] || /^s:[\w.-]+$/.test(l.sound))) return null;
     for (const [name, [lo, hi]] of Object.entries(ENVELOPE_LIMITS)) if (!(l[name] >= lo && l[name] <= hi)) return null;
     if (!l.delay || !DIVISIONS[l.delay.div] || !unitOk(l.delay.mix) || !unitOk(l.delay.feedback)) return null;
   }
-  return { seed: v.seed, salt: v.salt || 0, engine: e, global: v.global, layers: v.layers, form: validForm(v.form) };
+  return { seed: v.seed, salt: v.salt || 0, engine: e, global: v.global, layers: v.layers, form: validForm(v.form), colour: COLOURS[v.colour] ? v.colour : 'synth' };
 }
 
 let settings = freshSettings();
@@ -359,7 +361,7 @@ function renderLayer(id) {
     card.querySelector(`[data-out="${el.dataset.env}"]`).textContent = showEnvelope(el.dataset.env, s[el.dataset.env]);
   });
   card.querySelectorAll('input[type="range"]').forEach(paintRange);
-  if (def.kind === 'seq') cards[id].info.textContent = `${settings.engine.lengths[id]} STEPS${STEP_NAME[def.div].toUpperCase()} · ${SOUNDS[id][s.sound].label.toUpperCase()}`;
+  if (def.kind === 'seq') cards[id].info.textContent = `${settings.engine.lengths[id]} STEPS${STEP_NAME[def.div].toUpperCase()} · ${(SOUNDS[id][s.sound]?.label || 'Sample').toUpperCase()}`;
   else if (LAYER_INFO[id]) cards[id].info.textContent = LAYER_INFO[id];
 }
 
@@ -765,6 +767,7 @@ $('renderThread').addEventListener('click', async () => {
       engine: { ...settings.engine, key: { ...settings.engine.key }, salt: settings.salt },
       layers: settings.layers, global: settings.global,
       names: { title: 'Tangerine', subtitle },
+      colour: audio.colour,
       onProgress: (x) => { $('renderText').textContent = `Making the thread… ${Math.round(100 * x)} %`; },
     });
     const wav = encodeWav([result.buffer.getChannelData(0), result.buffer.getChannelData(1)], result.buffer.sampleRate);
@@ -922,6 +925,7 @@ $('setupFile').addEventListener('change', async (event) => {
     audio = new TangerineAudio({ seed: settings.seed, engine: { ...settings.engine, key: { ...settings.engine.key }, salt: settings.salt }, layers: settings.layers, global: settings.global });
     audio.on(onVisual);
     audio.on(onThreadEnd);
+    applyColourLimits();
     if (old.ctx) setTimeout(() => old.ctx.close(), 600);
     trail = []; marks = []; travelling = null;
     renderTrail();
@@ -993,8 +997,61 @@ function drawHelix(now) {
   $('helix').innerHTML = `${rungs}<polyline points="${strand(0)}" fill="none" stroke="#14100c" stroke-width="1.6" stroke-linecap="round" opacity=".7"/><polyline points="${strand(Math.PI)}" fill="none" stroke="#fff3df" stroke-width="1.3" stroke-linecap="round" opacity=".55"/>`;
 }
 
+// ---------------------------------------------------------------- colours (Tangerine II)
+//
+// A colour picks each layer's sound (samples when installed, synths otherwise),
+// a real reverberation for the vast room, and suggests reverb and tempo.
+
+function soundOptions(id) {
+  return Object.entries(SOUNDS[id]).filter(([, sound]) => !sound.sample || BANK.has(sound.sample))
+    .map(([value, sound]) => `<option value="${value}">${sound.label}</option>`).join('');
+}
+function applyColourLimits() {
+  const name = settings.colour;
+  const pools = Object.fromEntries(LAYER_IDS.map((id) => [id, colourPool(name, id, SOUNDS)]).filter(([, pool]) => pool));
+  audio.setColour({ pools: Object.keys(pools).length ? pools : null, space: colourSpace(name) });
+}
+function renderColour() {
+  const colour = COLOURS[settings.colour];
+  $('colour').value = settings.colour;
+  $('colourReadout').textContent = colour.label.split(' · ')[0].toUpperCase();
+  const missing = LAYER_IDS.filter((id) => (colour.layers[id] || []).some((n) => n.startsWith('s:')) && !colourSound(settings.colour, id, SOUNDS)?.startsWith('s:'));
+  const samples = BANK.status === 'loading' ? 'Looking for samples…' : BANK.message;
+  $('colourNote').textContent = `${colour.note} ${samples}${missing.length && settings.colour !== 'synth' ? ` Synthesized for now: ${missing.map((id) => cards[id].def.name).join(', ')}.` : ''}`;
+}
+function applyColour(name) {
+  settings.colour = name;
+  const colour = COLOURS[name];
+  for (const id of LAYER_IDS) {
+    const sound = colourSound(name, id, SOUNDS) || (name === 'synth' ? DEFAULT_LAYERS[id].sound : null);
+    if (sound && sound !== settings.layers[id].sound) { settings.layers[id].sound = sound; audio.setLayer(id, { sound }); }
+  }
+  if (colour.global) { Object.assign(settings.global, colour.global); audio.setGlobal(colour.global); }
+  applyColourLimits();
+  LAYER_IDS.forEach(renderLayer);
+  renderControls();
+  syncThreadLength();
+  renderColour();
+  persist();
+}
+$('colour').innerHTML = Object.entries(COLOURS).map(([value, c]) => `<option value="${value}">${c.label}</option>`).join('');
+$('colour').addEventListener('change', (e) => { applyColour(e.target.value); notify(`Colour: ${COLOURS[e.target.value].label}.`); });
+
 LAYER_IDS.forEach(renderLayer);
 renderControls();
+renderColour();
+BANK.load().then(() => {
+  for (const inst of Object.values(BANK.instruments)) for (const id of LAYER_IDS) SOUNDS[id][sampledKey(inst.name)] = sampledSound(inst);
+  for (const id of LAYER_IDS) {
+    const select = cards[id].card.querySelector('[data-field="sound"]');
+    select.innerHTML = soundOptions(id);
+    // A saved sampled sound whose folder is gone: back to the layer's usual sound.
+    if (!select.querySelector(`option[value="${CSS.escape(settings.layers[id].sound)}"]`)) { settings.layers[id].sound = DEFAULT_LAYERS[id].sound; audio.setLayer(id, { sound: settings.layers[id].sound }); }
+  }
+  applyColourLimits();
+  LAYER_IDS.forEach(renderLayer);
+  renderColour();
+});
 renderKeyReadout();
 renderSolo();
 requestAnimationFrame(frame);

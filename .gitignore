@@ -12,3 +12,7 @@ Recordings/
 # Local notes and Python caches
 Sol-preview-guide.md
 __pycache__/
+
+# Tangerine II: sample libraries stay on this Mac (their licences rarely allow sharing)
+samples/*
+!samples/LISEZ-MOI.md
