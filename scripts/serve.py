@@ -7,6 +7,8 @@ import json
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import secrets
+import subprocess
+import sys
 import threading
 import urllib.error
 import urllib.parse
@@ -261,9 +263,18 @@ def handler_for(root, identity, recordings):
                 kind = self.headers.get('Content-Type', '').split(';')[0]
                 if kind not in ['application/json', 'application/octet-stream']: raise ValueError('Invalid content type.')
                 data = self.rfile.read(size)
+                if route == ['', '__tangerine__', 'recordings', 'reveal'] and kind == 'application/json':
+                    # Like YuE2's "Open this run's folder": the Finder opens the folder, nothing is changed.
+                    path = recordings.reveal_path(json.loads(data or b'{}').get('id'))
+                    opener = ['open', str(path)] if sys.platform == 'darwin' else ['xdg-open', str(path)]
+                    try:
+                        subprocess.run(opener, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                    except (OSError, subprocess.CalledProcessError):
+                        return self._json(500, {'error': 'The Finder could not open this folder.'})
+                    return self._json(200, {'name': path.name})
                 if route == ['', '__tangerine__', 'recordings', 'start'] and kind == 'application/json':
                     options = json.loads(data)
-                    return self._json(201, recordings.start(options.get('sampleRate'), options.get('source'), options.get('seed')))
+                    return self._json(201, recordings.start(options.get('sampleRate'), options.get('source'), options.get('seed'), options.get('settings')))
                 if len(route) == 5 and route[1:3] == ['__tangerine__', 'recordings']:
                     sid, action = route[3:5]
                     if action == 'chunk' and kind == 'application/octet-stream':

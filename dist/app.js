@@ -1,16 +1,61 @@
 import { initStudio } from './studio.js';
-import { TangerineAudio, renderOffline, renderNotes, MAX_RENDER_MINUTES, encodeWav, LAYER_IDS, SOUNDS, DIVISIONS, DIVISION_LABEL, DEFAULT_LAYERS, DEFAULT_GLOBAL, ENVELOPE_LIMITS, KEEP_SECONDS, ECHO_MAX } from './audio.js?v=12';
+import { TangerineAudio, Graph, renderOffline, renderNotes, MAX_RENDER_MINUTES, encodeWav, LAYER_IDS, SOUNDS, DIVISIONS, DIVISION_LABEL, DEFAULT_LAYERS, DEFAULT_GLOBAL, ENVELOPE_LIMITS, KEEP_SECONDS, ECHO_MAX } from './audio.js?v=12';
 import { LAYERS, SEQ_IDS, HOLD_IDS } from './engine.js';
 import { BANK, COLOURS, sampledKey, sampledSound, colourSound, colourPool, colourSpace, colourSamples } from './samples.js';
 import { chordName, keyName, MODULATION_LABEL, METHOD_LABEL, KEY_NAMES, MODES, MODE_WEIGHT } from './theory.js';
 
 const $ = (id) => document.getElementById(id);
-const storageKey = 'tangerine.setup.v1.3';
-const VERSION = '1.3.0';
+const storageKey = 'tangerine.setup.v2';
+const VERSION = '2.0.0';
+
+// Slow change, made visible: a small marker on each Shape & Echo slider shows where that
+// setting is now. The factor is the audio's own (audio._drift), so the marker follows the sound.
+// Decay also depends on each note's length in the sound; that part is not in the marker.
+const DRIFTED = [
+  { key: 'a', name: 'attack', octaves: 0.6, now: (s, f) => Math.max(0.001, s.a * f), envelope: true },
+  { key: 'd', name: 'decay', octaves: 0.8, now: (s, f) => s.d * f, envelope: true },
+  { key: 'r', name: 'release', octaves: 0.6, now: (s, f) => Math.max(0.01, s.r * f), envelope: true },
+  { key: 'gate', name: 'gate', octaves: 0.8, now: (s, f) => Math.min(1, s.gate * f), envelope: true },
+  { key: 'feedback', name: 'feedback', octaves: 0.3, now: (s, f) => Math.min(1, s.delay.feedback * f) },
+  { key: 'mix', name: 'mix', octaves: 0.6, now: (s, f) => Math.min(1, s.delay.mix * f) },
+];
+
+function addDriftTicks(card) {
+  for (const { key } of DRIFTED) {
+    const input = card.querySelector(`[data-env="${key}"], [data-field="${key}"]`);
+    if (!input) continue;
+    const wrap = document.createElement('span');
+    const tick = document.createElement('i');
+    wrap.className = 'drift-wrap';
+    tick.className = 'drift-tick';
+    tick.dataset.tick = key;
+    tick.title = 'Where this setting is now, moved by Slow change';
+    tick.setAttribute('aria-hidden', 'true');
+    input.replaceWith(wrap);
+    wrap.append(input, tick);
+  }
+}
+
+function renderDrift() {
+  // The audio's own drift function, run on the audio's current step (0 before the first start).
+  const drift = { global: audio.global, seed: audio.seed, local: audio.graph ? audio.graph.local : 0 };
+  for (const id of LAYER_IDS) {
+    const entry = cards[id];
+    if (!entry) continue;
+    const s = settings.layers[id];
+    for (const { key, name, octaves, now, envelope } of DRIFTED) {
+      const tick = entry.card.querySelector(`[data-tick="${key}"]`);
+      if (!tick) continue;
+      const value = now(s, Graph.prototype._drift.call(drift, id, name, octaves));
+      const position = envelope ? toSlider(key, value) : Math.round(value * 100);
+      tick.style.setProperty('--p', Math.min(100, Math.max(0, position)) / 100);
+    }
+  }
+}
 const COLORS = {
-  bass: '#f28a2e', arp: '#ffc77d', motif: '#ff6a4d', pad: '#c9581c', bells: '#f7ead2',
-  cello: '#d0703a', seq2: '#ffa24a', lead: '#ff8a70', drone: '#b0683e', air: '#ffdcae',
-  theme: '#ffb894', pulse: '#e89a52',
+  bass: '#4fbf9f', arp: '#9adfb8', motif: '#6a9fe0', pad: '#3b7fb8', bells: '#dcefe8',
+  cello: '#3f9c8a', seq2: '#7fd08a', lead: '#8ab8ee', drone: '#2f6f86', air: '#bfe8f0',
+  theme: '#a6d6c4', pulse: '#5cc0d0',
 };
 const RENEW = [0, 32, 64, 128];
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -298,6 +343,7 @@ for (const def of LAYERS) {
       </div>
     </details>`;
   $('layerList').append(card);
+  addDriftTicks(card);
   const update = (patch) => {
     Object.assign(settings.layers[id], patch, patch.delay ? { delay: { ...settings.layers[id].delay, ...patch.delay } } : {});
     audio.setLayer(id, patch);
@@ -402,7 +448,7 @@ function drawRing(id, position, harmony) {
       const y = 23 + 17 * Math.sin(angle);
       const on = pattern[i]?.on;
       const lit = i === index && audio.playing;
-      html += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${lit ? 3.4 : on ? 2.2 : 1.2}" fill="${on || lit ? color : '#4a382a'}" opacity="${lit ? 1 : on ? 0.55 : 1}"/>`;
+      html += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${lit ? 3.4 : on ? 2.2 : 1.2}" fill="${on || lit ? color : '#304442'}" opacity="${lit ? 1 : on ? 0.55 : 1}"/>`;
     }
   } else if (HOLD_IDS.includes(id)) {
     const notes = id === 'pad' ? harmony?.voicing || [] : audio.graph?.lastHold[id] || [];
@@ -412,13 +458,13 @@ function drawRing(id, position, harmony) {
       const angle = -Math.PI / 2 + 2 * Math.PI * (midi % 12) / 12;
       html += `<line x1="23" y1="23" x2="${(23 + 18 * Math.cos(angle)).toFixed(1)}" y2="${(23 + 18 * Math.sin(angle)).toFixed(1)}" stroke="${color}" stroke-width="${i === 0 ? 2.2 : 1.4}" opacity="${0.5 + 0.1 * i}"/>`;
     });
-    html += '<circle cx="23" cy="23" r="19" fill="none" stroke="#4a382a"/>';
+    html += '<circle cx="23" cy="23" r="19" fill="none" stroke="#304442"/>';
   } else if (id !== 'bells') {
     // A bowed or held line: a slow wave.
     sig = 'line';
     if (sig === cards[id].lastSig) return;
     const points = Array.from({ length: 25 }, (_, i) => `${(5 + 36 * i / 24).toFixed(1)},${(23 + (id === 'lead' ? 9 : 6) * Math.sin(i / 24 * Math.PI * (id === 'lead' ? 3 : 2))).toFixed(1)}`).join(' ');
-    html = `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.6" opacity=".75"/><circle cx="23" cy="23" r="19" fill="none" stroke="#4a382a"/>`;
+    html = `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.6" opacity=".75"/><circle cx="23" cy="23" r="19" fill="none" stroke="#304442"/>`;
   } else {
     sig = 'bells';
     if (sig === cards[id].lastSig) return;
@@ -464,13 +510,13 @@ function onVisual(item) {
   }
   if (item.mutation) {
     const card = cards[item.mutation.layer]?.card;
-    if (card) { card.animate([{ borderColor: COLORS[item.mutation.layer] }, { borderColor: '#382a1f' }], { duration: 2400 }); }
+    if (card) { card.animate([{ borderColor: COLORS[item.mutation.layer] }, { borderColor: '#213634' }], { duration: 2400 }); }
   }
   if (item.recolor?.sound) {
     const { layer, sound } = item.recolor;
     settings.layers[layer].sound = sound;
     renderLayer(layer);
-    cards[layer].card.animate([{ borderColor: COLORS[layer] }, { borderColor: '#382a1f' }], { duration: 3200 });
+    cards[layer].card.animate([{ borderColor: COLORS[layer] }, { borderColor: '#213634' }], { duration: 3200 });
     if (settings.layers[layer].on) notify(`${cards[layer].def.name} changes its sound: ${SOUNDS[layer][sound].label}.`);
     persist();
   }
@@ -480,14 +526,14 @@ function onVisual(item) {
     settings.layers[on].on = true;
     for (const id of [off, on]) {
       renderLayer(id);
-      cards[id].card.animate([{ borderColor: COLORS[id] }, { borderColor: '#382a1f' }], { duration: 3200 });
+      cards[id].card.animate([{ borderColor: COLORS[id] }, { borderColor: '#213634' }], { duration: 3200 });
     }
     renderControls();
     notify(`${cards[off].def.name} rests. ${cards[on].def.name} comes in.`);
     persist();
   }
   if (item.renewed) {
-    for (const id of SEQ_IDS) cards[id].card.animate([{ borderColor: COLORS[id] }, { borderColor: '#382a1f' }], { duration: 3200 });
+    for (const id of SEQ_IDS) cards[id].card.animate([{ borderColor: COLORS[id] }, { borderColor: '#213634' }], { duration: 3200 });
     notify('New sequences, by themselves.');
   }
 }
@@ -511,7 +557,7 @@ function drawVine() {
   const xOf = (t) => nowX - (now - t) * px;
   const yOf = (midi) => h - 14 - (clamp(midi, 28, 100) - 28) / 72 * (h - 34);
   // Faint octave lines.
-  g.strokeStyle = '#2a1f17';
+  g.strokeStyle = '#182927';
   g.lineWidth = 1;
   for (let midi = 36; midi <= 96; midi += 12) { g.beginPath(); g.moveTo(0, yOf(midi) + 0.5); g.lineTo(w, yOf(midi) + 0.5); g.stroke(); }
   // Chord changes.
@@ -519,9 +565,9 @@ function drawVine() {
   for (const mark of marks) {
     const x = xOf(mark.t);
     if (x < -60 || x > w) continue;
-    g.strokeStyle = mark.modulation ? '#f28a2e88' : '#4a382a';
+    g.strokeStyle = mark.modulation ? '#4fbf9f88' : '#304442';
     g.beginPath(); g.moveTo(x + 0.5, 0); g.lineTo(x + 0.5, h); g.stroke();
-    g.fillStyle = mark.modulation ? '#ffbb6b' : '#ab9580';
+    g.fillStyle = mark.modulation ? '#9adfb8' : '#88a39e';
     if (x <= nowX) g.fillText(mark.name, x + 5, 13);
   }
   const feed = audio.feed;
@@ -559,7 +605,7 @@ function drawVine() {
     if (fresh) { g.globalAlpha = 0.35; g.fillRect(x - 2, y - thick / 2 - 3, width + 4, thick + 6); }
     g.globalAlpha = 1;
   }
-  g.strokeStyle = '#f28a2e';
+  g.strokeStyle = '#4fbf9f';
   g.globalAlpha = 0.6;
   g.beginPath(); g.moveTo(nowX + 0.5, 0); g.lineTo(nowX + 0.5, h); g.stroke();
   g.globalAlpha = 1;
@@ -841,6 +887,43 @@ async function finishRecording() {
   notify('Take kept: WAV, MIDI and ABC, just below.');
 }
 
+// From the beginning: the vine is rewound to its first bar with the same seed and
+// settings, and the capture is ready before the first sound. The recording stops by
+// itself after the chosen length, and the vine rests with it.
+async function startFromBeginning(recorder, minutes) {
+  if (audio.recording) throw new Error('Stop the memory recording first.');
+  const rest = async () => {
+    if (!audio.playing) return;
+    await audio.pause();
+    if (startedAt) elapsed += (performance.now() - startedAt) / 1000;
+    startedAt = null;
+    renderTransport();
+  };
+  await audio._ensure();
+  await rest();
+  // A whole piece starts with its real instruments: every sample of the colour is decoded first.
+  await banked;
+  await applyColourLimits();
+  if (audio.graph) audio.graph.releaseAll(audio.currentTime);
+  audio.setSeed(audio.seed);
+  resetDisplay();
+  elapsed = 0;
+  recorder.onLimit = rest;
+  await recorder.start({ audio, seed: audio.seed, beforePlay: true, limitSeconds: minutes * 60, settings: timedNote(minutes) });
+  await toggle();
+}
+
+// The note written beside the WAV files: the settings at the start, with the seed.
+function timedNote(minutes) {
+  return [
+    `Tangerine II ${VERSION}`,
+    `Recorded from the beginning, for ${minutes} min, then stopped by itself.`,
+    `Colour: ${COLOURS[settings.colour].label}. Seed ${audio.seed}. Same seed, colour and settings give the same vine.`,
+    'Settings at the start (changes made during the recording are not in this note):',
+    JSON.stringify(snapshot(), null, 2),
+  ].join('\n');
+}
+
 $('recordPassageButton').addEventListener('click', async () => {
   try {
     if (audio.recording) await finishRecording();
@@ -996,9 +1079,9 @@ function drawHelix(now) {
   for (let i = 2; i < 24; i += 2) {
     const [x1, y] = at(i, 0);
     const [x2] = at(i, Math.PI);
-    rungs += `<line x1="${x1.toFixed(2)}" y1="${y.toFixed(2)}" x2="${x2.toFixed(2)}" y2="${y.toFixed(2)}" stroke="#14100c" stroke-width="1" opacity=".38"/>`;
+    rungs += `<line x1="${x1.toFixed(2)}" y1="${y.toFixed(2)}" x2="${x2.toFixed(2)}" y2="${y.toFixed(2)}" stroke="#0b1216" stroke-width="1" opacity=".38"/>`;
   }
-  $('helix').innerHTML = `${rungs}<polyline points="${strand(0)}" fill="none" stroke="#14100c" stroke-width="1.6" stroke-linecap="round" opacity=".7"/><polyline points="${strand(Math.PI)}" fill="none" stroke="#fff3df" stroke-width="1.3" stroke-linecap="round" opacity=".55"/>`;
+  $('helix').innerHTML = `${rungs}<polyline points="${strand(0)}" fill="none" stroke="#0b1216" stroke-width="1.6" stroke-linecap="round" opacity=".7"/><polyline points="${strand(Math.PI)}" fill="none" stroke="#e5f9f1" stroke-width="1.3" stroke-linecap="round" opacity=".55"/>`;
 }
 
 // ---------------------------------------------------------------- colours (Tangerine II)
@@ -1017,8 +1100,9 @@ async function applyColourLimits() {
   // The colour's samples are decoded now (each once), and its real space with them.
   const space = await colourSpace(name);
   if (settings.colour === name) audio.setColour({ pools: audio.colour.pools, space });
-  for (const sample of colourSamples(name)) if (BANK.known(sample)) BANK.require(sample);
-  for (const id of LAYER_IDS) { const sound = SOUNDS[id][settings.layers[id].sound]; if (sound?.sample) BANK.require(sound.sample); }
+  const loads = colourSamples(name).filter((sample) => BANK.known(sample)).map((sample) => BANK.require(sample));
+  for (const id of LAYER_IDS) { const sound = SOUNDS[id][settings.layers[id].sound]; if (sound?.sample) loads.push(BANK.require(sound.sample)); }
+  await Promise.all(loads);
 }
 function renderColour() {
   const colour = COLOURS[settings.colour];
@@ -1055,7 +1139,7 @@ BANK.on(() => {
   if (audio.graph && audio.playing) audio.graph.refreshHolds();
   renderColour();
 });
-BANK.load().then(() => {
+const banked = BANK.load().then(() => {
   for (const [name, entry] of Object.entries(BANK.index.instruments)) for (const id of LAYER_IDS) SOUNDS[id][sampledKey(name)] = sampledSound(name, entry, id);
   for (const id of LAYER_IDS) {
     const select = cards[id].card.querySelector('[data-field="sound"]');
@@ -1072,5 +1156,6 @@ renderSolo();
 requestAnimationFrame(frame);
 window.tangerine = { get audio() { return audio; }, get settings() { return settings; } };
 
-const studio = initStudio({ getAudio: () => audio, notify });
+setInterval(renderDrift, 400);
+const studio = initStudio({ getAudio: () => audio, notify, startFromBeginning });
 window.tangerine.diskRecorder = studio.recorder;

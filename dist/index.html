@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#14100c">
+  <meta name="theme-color" content="#0b1216">
   <meta name="description" content="Tangerine is an endless vine of electronic sequences and slow, tonal harmony that changes key by shared notes. Made in your browser.">
-  <title>Tangerine · sequences in slow light</title>
+  <title>Tangerine II · sequences in slow light</title>
   <link rel="icon" type="image/svg+xml" href="./icon.svg">
   <link rel="stylesheet" href="./style.css?v=12">
   <link rel="stylesheet" href="./studio.css?v=130">
@@ -29,9 +29,9 @@
   </defs></svg>
 
   <header class="app-header">
-    <a class="brand" href="./" aria-label="Tangerine home"><span class="brand-mark" aria-hidden="true"><svg id="helix" class="helix" viewBox="0 0 40 40"></svg></span>tangerine<span class="wordmark-dot">.</span></a>
+    <a class="brand" href="./" aria-label="Tangerine II home"><span class="brand-mark" aria-hidden="true"><svg id="helix" class="helix" viewBox="0 0 40 40"></svg></span>tangerine<span class="wordmark-two">II</span></a>
     <span class="brand-note">SEQUENCES IN SLOW LIGHT</span>
-    <div class="header-end"><span class="local-label"><i></i> <span id="editionLabel">TANGERINE 1.3</span></span><button id="hintToggle" class="header-action" type="button" aria-pressed="false">Show tips</button><button id="previewToggle" class="header-action" type="button" aria-pressed="false">Phone preview</button><button id="helpButton" class="help-button" aria-label="About Tangerine" title="About Tangerine">?</button></div>
+    <div class="header-end"><span class="local-label"><i></i> <span id="editionLabel">TANGERINE II</span></span><button id="hintToggle" class="header-action" type="button" aria-pressed="false">Show tips</button><button id="previewToggle" class="header-action" type="button" aria-pressed="false">Phone preview</button><button id="helpButton" class="help-button" aria-label="About Tangerine" title="About Tangerine">?</button></div>
   </header>
 
   <main>
@@ -111,12 +111,24 @@
         </section></details><section class="record-section studio-panel" id="keepSection" aria-labelledby="keepTitle">
   <div class="panel-heading"><p class="section-label plain">KEEP &amp; RECORD</p><h2 id="keepTitle">Keep the good parts.</h2></div>
     <div class="capture-block browser-recording" id="portableRecording" hidden><span class="eyebrow">FROM NOW ON · IN THIS BROWSER</span><h3>Record a passage</h3><p>Record from now until Stop, up to 30 minutes, then download the files. For longer sessions, use the local download.</p><button id="recordPassageButton" class="record-button" type="button" aria-pressed="false"><svg aria-hidden="true"><use href="#record"/></svg><span id="memoryRecordText">Record a passage</span><span id="memoryRecordTime">0:00</span></button><p class="capture-help">Creates WAV audio, MIDI notes and ABC download links under recent passages. Download them before closing the tab.</p></div>
+  <div class="capture-block timed-block" id="timedBlock" hidden>
+    <span class="eyebrow">FROM THE BEGINNING</span>
+    <h3>Record a whole piece</h3>
+    <p>Restarts the vine from its first bar, with the same seed and settings, and records from the first sound until the chosen length. Then it stops by itself.</p>
+    <label class="slider-label" for="timedMinutes"><span>Length</span><output id="timedMinutesValue">2 h</output></label>
+    <input id="timedMinutes" type="range" min="1" max="120" step="1" value="120">
+    <p class="capture-help" id="timedSize"></p>
+    <button id="timedRecord" class="record-button disk-record" type="button"><svg aria-hidden="true"><use href="#record"/></svg><span id="timedText">Start from the beginning and record 2 h</span></button>
+    <button class="text-action open-folder" type="button">Open the Recordings folder ↗</button>
+    <p class="capture-help">The settings and the seed are saved beside the WAV files. Do not change a setting while it records: it would change the piece.</p>
+  </div>
   <div class="capture-block disk-block" id="diskBlock">
     <span class="eyebrow"><i class="record-light" id="recordLight"></i> FROM NOW ON</span>
     <h3 id="diskTitle">Record to this computer</h3>
     <p id="diskIntro">The local download can write audio directly to your computer until you stop.</p>
     <div id="diskControls"><button id="recordButton" class="record-button disk-record" type="button" aria-pressed="false"><svg aria-hidden="true"><use href="#record"/></svg><span id="recordText">Record to Mac</span><span id="recordTime">0:00</span></button>
-    <button id="recordOtherTab" class="text-action" type="button">Record an already playing Chrome tab ↗</button></div>
+    <button id="recordOtherTab" class="text-action" type="button">Record an already playing Chrome tab ↗</button>
+    <button class="text-action open-folder" type="button">Open the Recordings folder ↗</button></div>
     <p class="capture-status" id="diskStatus" role="status">Checking local recording…</p>
     <p class="capture-help" id="diskHelp">No 30-minute stop. Consecutive one-hour WAV files keep long sessions manageable. Keep this recorder tab open and your Mac awake.</p>
     <p class="recording-path" id="recordingPath"></p>
@@ -138,7 +150,7 @@
           <p class="control-hint">Channels: bass 1 · arpeggio 2 · motif 3 · pad 4 · bells 5 · low strings 6 · counter sequence 7 · long lead 8 · drone 9 · high strings 11 · slow melody 12 · echo pulse 13.</p>
         </section></details></aside>
     </div>
-    <footer class="app-footer"><span>TANGERINE <span class="slash">/</span> NOTHING BUT SOUND <span class="app-version">v1.3.0 · SEED <span id="seedValue"></span></span></span><div><a class="previous-version" href="./versions/v1.2.0/">Previous version · 1.2 ↗</a></div><span class="shortcut-note"><kbd>space</kbd> to play / pause</span></footer>
+    <footer class="app-footer"><span>TANGERINE II <span class="slash">/</span> REAL INSTRUMENTS <span class="app-version">v2.0 · SEED <span id="seedValue"></span></span></span><div><a class="previous-version" href="./versions/v1.2.0/">Previous version · 1.2 ↗</a></div><span class="shortcut-note"><kbd>space</kbd> to play / pause</span></footer>
   </main>
 
   </div>

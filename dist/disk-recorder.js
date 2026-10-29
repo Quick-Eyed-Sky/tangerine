@@ -23,15 +23,20 @@ export class DiskRecorder {
     this.files = [];
     this.error = null;
     this.chain = Promise.resolve();
+    // A timed recording: stops by itself after limitSeconds, then calls onLimit.
+    this.limitSeconds = null;
+    this.limitFrames = null;
+    this.limitReached = false;
+    this.onLimit = null;
   }
   get active() { return ['starting', 'recording', 'stopping'].includes(this.state); }
   get seconds() { return this.frames / (this.rate || 48000); }
   get savedSeconds() { return this.writtenFrames / (this.rate || 48000); }
   changed() { this.onChange?.(this); }
 
-  async start({ audio, external = false, seed }) {
+  async start({ audio, external = false, seed, beforePlay = false, limitSeconds = null, settings = null }) {
     if (this.active) return;
-    this.state = 'starting'; this.error = null; this.frames = 0; this.writtenFrames = 0;
+    this.state = 'starting'; this.error = null; this.frames = 0; this.writtenFrames = 0; this.limitReached = false;
     this.pendingBytes = 0; this.sequence = 0; this.files = []; this.chain = Promise.resolve();
     this.folder = null; this.session = null; this.flushResolve = null; this.changed();
     try {
@@ -45,7 +50,8 @@ export class DiskRecorder {
         });
         if (!this.stream.getAudioTracks().length) throw new Error('No tab audio was shared. Choose a Chrome tab and enable “Share tab audio”.');
       } else {
-        if (!audio?.graph || !audio.playing) throw new Error('Start the vine first, then record it.');
+        // beforePlay: the capture is ready first, so that the first sound is not missed.
+        if (!audio?.graph || (!audio.playing && !beforePlay)) throw new Error('Start the vine first, then record it.');
         this.tap = audio.ctx.createMediaStreamDestination();
         this.output = audio.graph.out;
         this.output.connect(this.tap);
@@ -55,29 +61,38 @@ export class DiskRecorder {
       this.ctx = new AudioContext({ latencyHint: 'playback' });
       await this.ctx.resume();
       this.rate = this.ctx.sampleRate;
+      this.limitSeconds = limitSeconds;
+      this.limitFrames = limitSeconds ? Math.round(limitSeconds * this.rate) : null;
       await this.ctx.audioWorklet.addModule('./disk-capture.js');
       this.source = this.ctx.createMediaStreamSource(new MediaStream(this.stream.getAudioTracks()));
       this.node = new AudioWorkletNode(this.ctx, 'tangerine-disk-capture', {
         numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
         channelCount: 2, channelCountMode: 'explicit',
       });
-      const info = await request('/start', { sampleRate: this.rate, source: external ? 'other-tab' : 'tangerine', seed });
+      const info = await request('/start', { sampleRate: this.rate, source: external ? 'other-tab' : 'tangerine', seed, settings });
       this.session = info.id; this.folder = info.folder; this.sourceName = external ? 'Other Chrome tab' : 'This vine';
       this.node.port.onmessage = ({ data }) => {
         if (data.stopped) { this.flushResolve?.(); return; }
-        if (!data.pcm || this.error) return;
-        this.frames += data.frames;
-        this.pendingBytes += data.pcm.byteLength;
+        if (!data.pcm || this.error || this.limitReached) return;
+        let { pcm, frames } = data;
+        // A timed recording ends on an exact frame: the last block is cut to the requested length.
+        if (this.limitFrames && this.frames + frames >= this.limitFrames) {
+          frames = this.limitFrames - this.frames;
+          pcm = pcm.slice(0, frames * 4);
+          this.limitReached = true;
+        }
+        this.frames += frames;
+        this.pendingBytes += pcm.byteLength;
         const sequence = this.sequence++;
         this.chain = this.chain.then(async () => {
           if (this.error) return;
           let saved;
           for (let attempt = 0; attempt < 3; attempt++) {
-            try { saved = await request(`/${this.session}/chunk?sequence=${sequence}`, data.pcm, true); break; }
+            try { saved = await request(`/${this.session}/chunk?sequence=${sequence}`, pcm, true); break; }
             catch (error) { if (attempt === 2) throw error; await delay(500); }
           }
-          this.pendingBytes -= data.pcm.byteLength;
-          this.writtenFrames += data.frames;
+          this.pendingBytes -= pcm.byteLength;
+          this.writtenFrames += frames;
           this.files = saved.files;
           this.changed();
         }).catch((error) => {
@@ -88,6 +103,7 @@ export class DiskRecorder {
           this.error = new Error('Disk writing has fallen over a minute behind. Recording stopped; the saved files remain on your Mac.');
           this.stop();
         }
+        if (this.limitReached) this.stop().then(() => this.onLimit?.());
         this.changed();
       };
       this.source.connect(this.node);

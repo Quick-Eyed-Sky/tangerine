@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Tangerine: double-click to listen.
+# Tangerine II: double-click to listen, and to record whole pieces with the real instruments.
 # Starts the small local server for this folder and opens it in Chrome.
 # A copy that is already running is detected and simply reopened.
 set -e
@@ -17,4 +17,4 @@ if [ -d "/Applications/Google Chrome.app" ]; then
   export BROWSER='open -a "Google Chrome" %s'
 fi
 
-exec python3 "$TANGERINE_DIR/scripts/serve.py" --port 4350 --open
+exec python3 "$TANGERINE_DIR/scripts/serve.py" --port 4460 --open

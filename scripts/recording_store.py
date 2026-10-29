@@ -21,9 +21,20 @@ class RecordingStore:
                 "files": list(session["files"]), "frames": session["frames"],
                 "sampleRate": session["rate"], "closed": session["closed"]}
 
-    def start(self, rate, source, seed=None):
+    def reveal_path(self, sid=None):
+        """The recordings folder, or one recording's folder: only folders this store made."""
+        self.folder.mkdir(parents=True, exist_ok=True)
+        if sid is None:
+            return self.folder
+        if not isinstance(sid, str) or sid not in self.sessions:
+            raise KeyError(sid)
+        return self.folder / sid
+
+    def start(self, rate, source, seed=None, settings=None):
         if type(rate) is not int or not 8000 <= rate <= 192000:
             raise ValueError("Unsupported sample rate.")
+        if settings is not None and (not isinstance(settings, str) or len(settings) > 200_000):
+            raise ValueError("Invalid settings note.")
         with self.lock:
             self.folder.mkdir(parents=True, exist_ok=True)
             sid = datetime.now().strftime('%Y-%m-%d_%H-%M-%S_') + secrets.token_hex(6)
@@ -38,6 +49,8 @@ class RecordingStore:
                         "segmentSeconds": self.segment_seconds,
                         "note": "Audio only. Consecutive WAV parts join without missing or duplicated PCM frames."}
             (self.folder / sid / 'session.json').write_text(json.dumps(metadata, indent=2), encoding='utf-8')
+            if settings is not None:
+                (self.folder / sid / 'reglages.txt').write_text(settings, encoding='utf-8')
             return self.info(session)
 
     def _open_part(self, s):
