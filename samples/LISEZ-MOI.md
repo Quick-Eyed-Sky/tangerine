@@ -1,28 +1,24 @@
 # Samples de Tangerine II
 
-Ce dossier reste sur ton Mac : il n'est pas envoyé sur GitHub, car la plupart des licences de samples n'autorisent pas le partage.
+Les samples restent sur ton Mac. Ils ne vont pas sur GitHub, car la plupart des licences de samples n'autorisent pas le partage.
 
-## Comment ça marche
+## Où les mettre
 
-- **Un dossier par instrument.** Tous les fichiers audio qu'il contient (WAV, AIFF, FLAC, OGG, MP3) forment l'instrument.
-- **La hauteur des notes.** Un nom de note dans le nom du fichier (`Choir C3.wav`, `Violins F#2.wav`) indique sa hauteur. Sinon, Tangerine la mesure à l'écoute, et corrige aussi une éventuelle erreur d'octave.
-- **Les espaces.** `_spaces/` reçoit les vraies réverbérations (réponses impulsionnelles, en WAV).
-- **Au lancement.** Tangerine lit ce dossier quand on lance le lanceur local (`Tangerine.command`). Ajoute des sons, puis recharge la page.
-- **Les couleurs.** Une couleur cherche certains noms de dossier ci-dessous. Si un dossier manque, la couche reste en synthèse.
-- **Les réglages par instrument.** Un fichier `instrument.json` facultatif peut contenir `{"label": "Mellotron Choir", "gain": 0.8}`.
-- **Pour essayer sans rien télécharger :** `python3 tools/test-samples.py` crée des sons d'essai.
+Le lanceur cherche les samples à deux endroits, dans cet ordre :
 
-## Dossiers attendus par les couleurs
+1. le dossier `samples/` à côté de Tangerine ;
+2. le dossier `SAMPLES` à côté du dossier de Tangerine, par exemple `Tangerine II/SAMPLES` avec `Tangerine II/Tangerine`.
 
-| Dossier | Couleur | Où le trouver |
-| --- | --- | --- |
-| `mellotron-choir`, `mellotron-strings`, `mellotron-violins`, `mellotron-cello`, `mellotron-flute` | Phaedra 1974 | Samples Mellotron de Taijiguy (gratuits, environ 20 Mo par instrument) |
-| `moog-bass`, `moog-sequence`, `moog-lead` | Phaedra, Moon Safari | Legowelt « Moog Minimoog », ou Soundpacks « Moog Model Ten » |
-| `e-piano` | Phaedra, Moon Safari | À trouver (Rhodes ou Wurlitzer gratuit) |
-| `prophet-pad`, `prophet-bass`, `prophet-sequence`, `prophet-lead` | Stratosfear / Exit | Legowelt « Prophet 600 », Principleasure « Prophet 5 » |
-| `jupiter-pad`, `jupiter-strings`, `jupiter-bass`, `jupiter-sequence`, `jupiter-lead`, `jupiter-bells` | Stratosfear / Exit | Legowelt « Jupiter 8 » |
-| `ob-pad` | Stratosfear / Exit | Principleasure « OB-8 », Legowelt « Matrix 1000 » |
-| `solina` ou `string-machine` | Moon Safari | À trouver (Solina ou Eminent gratuit) |
-| `_spaces/church.wav`, `cathedral`, `hall`, `plate`, `room`, `studio` | Selon la couleur | Bibliothèque OpenAIR (Université de York) |
+Tu peux ranger tes packs tels que tu les as téléchargés.
 
-Les packs Legowelt rangent un son par fichier, chacun sur une seule note. Il suffit de copier dans un dossier les sons qui vont ensemble, par exemple des basses dans `prophet-bass`. Tangerine transpose depuis la note la plus proche.
+## Comment Tangerine les trouve
+
+- **`instruments.json`** (à côté du lanceur) donne un nom à chaque instrument et dit où il se trouve. Il y a trois façons de décrire un instrument :
+  - `folder` : un dossier avec une note par fichier, comme les Mellotron de Sonic Bloom ;
+  - `files` : un ou plusieurs fichiers, comme les packs Legowelt (un son par fichier) ;
+  - `sfz` : un fichier SFZ déjà réglé, comme la bibliothèque Fairlight Series III.
+- **Changer un son** : il suffit de remplacer un nom de fichier dans `instruments.json`, puis de recharger la page.
+- **Volume d'un instrument** : `"gain": 1.5` le rend plus fort, `0.7` plus doux.
+- **La hauteur des notes** : un nom de note dans le nom du fichier (`Choir C3.wav`) fixe sa hauteur. Sinon, Tangerine la mesure à l'écoute.
+- **Les réverbérations** : un dossier `_spaces/` dans le dossier des samples reçoit les vraies réverbérations (fichiers WAV de réponse impulsionnelle). Les noms reconnus par les couleurs sont `church`, `cathedral`, `hall`, `plate`, `room` et `studio`.
+- **Chargement à la demande** : un instrument n'est chargé que lorsqu'une couleur ou une couche le demande. Les premières secondes, la couche peut encore jouer en synthèse.

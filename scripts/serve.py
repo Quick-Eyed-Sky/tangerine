@@ -12,6 +12,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
+import re
+import wave
 from recording_store import RecordingStore
 
 IDENTITY_PATH = '/__tangerine__/identity'
@@ -40,32 +42,120 @@ def identity_for(root):
     }
 
 
-def sample_index(folder):
-    """Tangerine II: one instrument per folder of samples/, real spaces in samples/_spaces/."""
-    index = {'instruments': {}, 'spaces': {}}
+SFZ_NOTES = {'c': 0, 'd': 2, 'e': 4, 'f': 5, 'g': 7, 'a': 9, 'b': 11}
+
+
+def sfz_key(value):
+    """An SFZ key: a MIDI number or a note name (c4 = 60)."""
+    value = value.strip().lower()
+    if value.lstrip('-').isdigit():
+        return int(value)
+    if value and value[0] in SFZ_NOTES:
+        sign = {'#': 1, 'b': -1}.get(value[1:2], 0)
+        octave = value[2:] if sign else value[1:]
+        if octave.lstrip('-').isdigit():
+            return 12 * (int(octave) + 1) + SFZ_NOTES[value[0]] + sign
+    return None
+
+
+def wav_rate(path):
+    try:
+        with wave.open(str(path)) as audio:
+            return audio.getframerate()
+    except (OSError, wave.Error, EOFError):
+        return 44100
+
+
+def sfz_zones(path, url):
+    """The regions of an SFZ file, as zones Tangerine can play."""
+    text = re.sub(r'//[^\n]*', '', path.read_text(errors='replace'))
+    zones, scope, defaults, region, base = [], None, {}, None, path.parent
+    for token in re.finditer(r'<(\w+)>|(\w+)=([^\n<]*?)(?=\s+\w+=|\s*<|\s*$)', text, re.S):
+        if token.group(1):
+            if region is not None:
+                zones.append(region)
+            scope = token.group(1)
+            region = dict(defaults) if scope == 'region' else None
+            if scope in ('group', 'global', 'master'):
+                defaults = {} if scope != 'group' else {k: v for k, v in defaults.items() if k == 'default_path'}
+            continue
+        key, value = token.group(2), token.group(3).strip()
+        (region if region is not None else defaults)[key] = value
+    if region is not None:
+        zones.append(region)
+    out = []
+    for z in zones:
+        if 'sample' not in z:
+            continue
+        sample = (base / (z.get('default_path', '') + z['sample']).replace('\\', '/')).resolve()
+        if not sample.is_file():
+            continue
+        key = sfz_key(z.get('pitch_keycenter', z.get('key', '60'))) or 60
+        zone = {'name': sample.name, 'url': url(sample), 'key': key, 'tune': float(z.get('tune', 0) or 0)}
+        lo, hi = sfz_key(z.get('lokey', z.get('key', ''))), sfz_key(z.get('hikey', z.get('key', '')))
+        if lo is not None and hi is not None:
+            zone['lo'], zone['hi'] = lo, hi
+        if z.get('loop_mode', 'loop_continuous') in ('loop_continuous', 'loop_sustain') and 'loop_end' in z:
+            zone['loop'] = [int(z.get('loop_start', 0)), int(z['loop_end'])]
+            zone['rate'] = wav_rate(sample)
+        out.append(zone)
+    return out
+
+
+def sample_folder(root):
+    """samples/ next to Tangerine, or SAMPLES next to its folder."""
+    for folder in (root / 'samples', root.parent / 'SAMPLES', root.parent / 'samples'):
+        if folder.is_dir() and any(p.is_dir() for p in folder.iterdir()):
+            return folder.resolve()
+    return (root / 'samples').resolve()
+
+
+def sample_index(root):
+    """Tangerine II: the instruments of instruments.json, plus any folder of named notes; real spaces in _spaces/."""
+    folder = sample_folder(root)
+    index = {'folder': str(folder), 'instruments': {}, 'spaces': {}}
     if not folder.is_dir():
         return index
+
     def url(path):
         return '/samples/' + urllib.parse.quote(path.relative_to(folder).as_posix())
+
+    def audio_in(path):
+        return sorted(p for p in path.iterdir() if p.is_file() and p.suffix.lower() in AUDIO_SUFFIXES and not p.name.startswith('.'))
+
+    def inside(relative):
+        path = (folder / relative).resolve()
+        return path if path.is_relative_to(folder) and path.exists() else None
+
+    try:
+        named = json.loads((root / 'instruments.json').read_text())
+    except (OSError, ValueError):
+        named = {}
+    for name, spec in named.items():
+        if name.startswith('_') or not isinstance(spec, dict):
+            continue
+        zones = []
+        if spec.get('sfz') and inside(spec['sfz']):
+            zones = sfz_zones(inside(spec['sfz']), url)
+        elif spec.get('folder') and inside(spec['folder']):
+            zones = [{'name': p.name, 'url': url(p)} for p in audio_in(inside(spec['folder']))]
+        elif spec.get('files'):
+            zones = [{'name': p.name, 'url': url(p)} for p in map(inside, spec['files']) if p and p.is_file()]
+        if zones:
+            index['instruments'][name] = {'label': spec.get('label', name), 'gain': spec.get('gain', 1), 'zones': zones[:128]}
+
+    note = re.compile(r'[A-G](#|b)?-?[0-8]$')
     for entry in sorted(folder.iterdir()):
         if not entry.is_dir() or entry.name.startswith('.'):
             continue
-        files = sorted(p for p in entry.rglob('*') if p.is_file() and p.suffix.lower() in AUDIO_SUFFIXES and not p.name.startswith('.'))
-        if entry.name == '_spaces':
+        files = audio_in(entry)
+        if entry.name.lower() == '_spaces':
             index['spaces'] = {p.stem.lower(): url(p) for p in files}
             continue
-        if not files:
-            continue
-        options = {}
-        try:
-            options = json.loads((entry / 'instrument.json').read_text())
-        except (OSError, ValueError):
-            pass
-        index['instruments'][entry.name.lower()] = {
-            'label': options.get('label', entry.name.replace('-', ' ').capitalize()),
-            'gain': options.get('gain', 1),
-            'files': [{'name': p.name, 'url': url(p), 'note': options.get('notes', {}).get(p.name)} for p in files[:96]],
-        }
+        # A folder of single notes (Choir C3.wav, Choir D3.wav...) is an instrument by itself.
+        if len(files) >= 3 and sum(bool(note.search(p.stem)) for p in files) >= 0.8 * len(files):
+            name = re.sub(r'[^a-z0-9]+', '-', entry.name.lower()).strip('-')
+            index['instruments'].setdefault(name, {'label': entry.name, 'gain': 1, 'zones': [{'name': p.name, 'url': url(p)} for p in files[:128]]})
     return index
 
 
@@ -101,7 +191,7 @@ def handler_for(root, identity, recordings):
                 return BytesIO(data)
             if urllib.parse.urlsplit(self.path).path == SAMPLES_PATH:
                 from io import BytesIO
-                data = json.dumps(sample_index(root / 'samples')).encode()
+                data = json.dumps(sample_index(root)).encode()
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.send_header('Content-Length', str(len(data)))
@@ -113,7 +203,7 @@ def handler_for(root, identity, recordings):
             # /samples/... comes from the samples folder next to the launcher, never from above it.
             route = urllib.parse.unquote(urllib.parse.urlsplit(path).path)
             if route.startswith('/samples/'):
-                folder = (root / 'samples').resolve()
+                folder = sample_folder(root)
                 target = (folder / route[len('/samples/'):]).resolve()
                 return str(target) if target.is_relative_to(folder) else str(folder / '__outside__')
             return super().translate_path(path)

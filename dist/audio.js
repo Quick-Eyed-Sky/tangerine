@@ -532,7 +532,7 @@ export class Graph {
     const zone = sound.sample && BANK.zone(sound.sample, event.midi);
     const long = zone && tRel - t > 0.8 * zone.buffer.duration / zone.rate;
     // Short notes sound softer than the same sample held: they get a lift to sit like the synths.
-    const oscs = sound.sample ? this._samples(sound, event.midi, t, ch.drift, long, sum).map(([src, g]) => { g.gain.value *= 5; src.stop(end); return [src, g]; }) : sound.osc.map(([type, semis, cents, gain]) => {
+    const oscs = sound.sample ? this._samples(sound, event.midi, t, ch.drift, long, sum).map(([src, g]) => { g.gain.value *= 2.5; src.stop(end); return [src, g]; }) : sound.osc.map(([type, semis, cents, gain]) => {
       const osc = this._oscillator(type, freq, semis, cents + (unit(this.seed, id, event.step, gain) - 0.5) * 4, t, ch.drift);
       const g = ctx.createGain();
       g.gain.value = gain;
@@ -663,7 +663,7 @@ export class Graph {
     if (this.journal && step !== undefined && id !== 'pad') this.journal.hold(id, s.on ? notes : [], step);
     const audible = this.audible(id);
     for (const [midi, voice] of voices) {
-      if (notes.includes(midi) && voice.sound === s.sound && audible) continue;
+      if (notes.includes(midi) && voice.real === this._sound(id, s.sound) && audible) continue;
       this._release(id, midi, voice, t);
     }
     this._holdMidi(id, s.on ? notes : [], t);
@@ -719,7 +719,7 @@ export class Graph {
       sum.connect(vca);
     }
     vca.connect(ch.holdFilter);
-    return { vca, oscs, nodes, sound: s.sound, released: false };
+    return { vca, oscs, nodes, sound: s.sound, real: sound, released: false };
   }
 
   _release(id, midi, voice, t) {

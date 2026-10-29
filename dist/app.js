@@ -1,7 +1,7 @@
 import { initStudio } from './studio.js';
 import { TangerineAudio, renderOffline, renderNotes, MAX_RENDER_MINUTES, encodeWav, LAYER_IDS, SOUNDS, DIVISIONS, DIVISION_LABEL, DEFAULT_LAYERS, DEFAULT_GLOBAL, ENVELOPE_LIMITS, KEEP_SECONDS, ECHO_MAX } from './audio.js?v=12';
 import { LAYERS, SEQ_IDS, HOLD_IDS } from './engine.js';
-import { BANK, COLOURS, sampledKey, sampledSound, colourSound, colourPool, colourSpace } from './samples.js';
+import { BANK, COLOURS, sampledKey, sampledSound, colourSound, colourPool, colourSpace, colourSamples } from './samples.js';
 import { chordName, keyName, MODULATION_LABEL, METHOD_LABEL, KEY_NAMES, MODES, MODE_WEIGHT } from './theory.js';
 
 const $ = (id) => document.getElementById(id);
@@ -310,7 +310,11 @@ for (const def of LAYERS) {
     audio.setSolo(audio.solo === id ? null : id);
     renderSolo();
   });
-  card.querySelector('[data-field="sound"]').addEventListener('change', (e) => update({ sound: e.target.value }));
+  card.querySelector('[data-field="sound"]').addEventListener('change', (e) => {
+    const sample = SOUNDS[id][e.target.value]?.sample;
+    if (sample) BANK.require(sample);
+    update({ sound: e.target.value });
+  });
   card.querySelectorAll('[data-field="div"]').forEach((el) => el.addEventListener('change', (e) => update({ delay: { div: e.target.value } })));
   card.querySelector('[data-field="level"]').addEventListener('input', (e) => update({ level: Number(e.target.value) / 100 }));
   card.querySelector('[data-field="feedback"]').addEventListener('input', (e) => update({ delay: { feedback: Number(e.target.value) / 100 } }));
@@ -1003,20 +1007,26 @@ function drawHelix(now) {
 // a real reverberation for the vast room, and suggests reverb and tempo.
 
 function soundOptions(id) {
-  return Object.entries(SOUNDS[id]).filter(([, sound]) => !sound.sample || BANK.has(sound.sample))
+  return Object.entries(SOUNDS[id]).filter(([, sound]) => !sound.sample || BANK.known(sound.sample))
     .map(([value, sound]) => `<option value="${value}">${sound.label}</option>`).join('');
 }
-function applyColourLimits() {
+async function applyColourLimits() {
   const name = settings.colour;
   const pools = Object.fromEntries(LAYER_IDS.map((id) => [id, colourPool(name, id, SOUNDS)]).filter(([, pool]) => pool));
-  audio.setColour({ pools: Object.keys(pools).length ? pools : null, space: colourSpace(name) });
+  audio.setColour({ pools: Object.keys(pools).length ? pools : null, space: audio.colour.space });
+  // The colour's samples are decoded now (each once), and its real space with them.
+  const space = await colourSpace(name);
+  if (settings.colour === name) audio.setColour({ pools: audio.colour.pools, space });
+  for (const sample of colourSamples(name)) if (BANK.known(sample)) BANK.require(sample);
+  for (const id of LAYER_IDS) { const sound = SOUNDS[id][settings.layers[id].sound]; if (sound?.sample) BANK.require(sound.sample); }
 }
 function renderColour() {
   const colour = COLOURS[settings.colour];
   $('colour').value = settings.colour;
   $('colourReadout').textContent = colour.label.split(' · ')[0].toUpperCase();
   const missing = LAYER_IDS.filter((id) => (colour.layers[id] || []).some((n) => n.startsWith('s:')) && !colourSound(settings.colour, id, SOUNDS)?.startsWith('s:'));
-  const samples = BANK.status === 'loading' ? 'Looking for samples…' : BANK.message;
+  const waiting = colourSamples(settings.colour).filter((n) => BANK.known(n) && !BANK.has(n)).length;
+  const samples = BANK.status === 'loading' ? 'Looking for samples…' : `${BANK.message}${waiting ? ` Loading ${waiting} sample instrument${waiting === 1 ? '' : 's'}…` : ''}`;
   $('colourNote').textContent = `${colour.note} ${samples}${missing.length && settings.colour !== 'synth' ? ` Synthesized for now: ${missing.map((id) => cards[id].def.name).join(', ')}.` : ''}`;
 }
 function applyColour(name) {
@@ -1040,8 +1050,13 @@ $('colour').addEventListener('change', (e) => { applyColour(e.target.value); not
 LAYER_IDS.forEach(renderLayer);
 renderControls();
 renderColour();
+// A sample instrument just decoded: held layers take it up, the note says so.
+BANK.on(() => {
+  if (audio.graph && audio.playing) audio.graph.refreshHolds();
+  renderColour();
+});
 BANK.load().then(() => {
-  for (const inst of Object.values(BANK.instruments)) for (const id of LAYER_IDS) SOUNDS[id][sampledKey(inst.name)] = sampledSound(inst);
+  for (const [name, entry] of Object.entries(BANK.index.instruments)) for (const id of LAYER_IDS) SOUNDS[id][sampledKey(name)] = sampledSound(name, entry);
   for (const id of LAYER_IDS) {
     const select = cards[id].card.querySelector('[data-field="sound"]');
     select.innerHTML = soundOptions(id);

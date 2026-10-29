@@ -1,22 +1,26 @@
 // TANGERINE II · sampled sounds and colours.
 //
-// The local launcher lists the folder `samples/` next to it: one folder per
-// instrument (any WAV, AIFF, FLAC, OGG or MP3 inside), and `samples/_spaces/`
-// for real reverberations (impulse responses). A note name in a file name
-// (C3, F#2, Db4) gives its pitch; otherwise the pitch is measured.
+// The local launcher lists the sample folder next to it (`samples/`, or
+// `../SAMPLES`): instruments named in `instruments.json` (a folder of notes,
+// a list of files, or an SFZ file), plus any other folder of samples, one
+// instrument per folder. `_spaces/` holds real reverberations. A note name
+// in a file name (C3, F#2, Db4) gives its pitch; otherwise the pitch is measured.
+//
+// Only the index is read at the start: an instrument is decoded when a colour
+// or a layer asks for it, so two gigabytes of samples cost nothing until used.
 //
 // A colour chooses, for each layer, the first sound it can find in a list:
-// a sampled instrument (by folder name) or one of the synthesized sounds. With
+// a sampled instrument (by name) or one of the synthesized sounds. With
 // no samples at all, every colour still plays, in synthesis.
 
 const NOTE = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
 const AUDIO_FILE = /\.(wav|aiff?|flac|ogg|mp3|m4a)$/i;
 
-// "Choir C3.wav" → 60 (C3 as middle C, as in Logic and Ableton). Libraries differ
-// by an octave on this; the measured pitch settles which octave is meant.
+// "Choir C3.wav", "ViolHi2C5.wav" → MIDI, C3 as middle C (60), as in Logic and
+// Ableton. Libraries differ by an octave on this; the measured pitch settles it.
 export function noteFromName(name) {
   const stem = name.replace(AUDIO_FILE, '');
-  const match = stem.match(/(?:^|[^a-z])([a-g])(#|s|b|♯|♭)?(-1|[0-8])(?![0-9])/i);
+  const match = stem.match(/([A-G])(#|b|♯|♭)?(-1|[0-8])$/) || stem.match(/(?:^|[^a-z])([a-g])(#|s|b|♯|♭)?(-1|[0-8])(?![0-9])/i);
   if (!match) return null;
   const sign = match[2] ? (/[#s♯]/i.test(match[2]) ? 1 : -1) : 0;
   return 12 * (Number(match[3]) + 2) + NOTE[match[1].toLowerCase()] + sign;
@@ -68,8 +72,17 @@ export function loopPoints(data, sampleRate) {
 
 // The gain that brings a buffer's loudest 300 ms to a common loudness (RMS), so that
 // a long held note and a short decaying one sit like the synths.
-function level(buffer, target) {
+function level(buffer, target, loop = null) {
   const data = buffer.getChannelData(0);
+  // A held sound is heard mostly through its loop: that is what is levelled.
+  if (loop) {
+    const from = Math.floor(loop[0] * buffer.sampleRate);
+    const to = Math.min(data.length, Math.floor(loop[1] * buffer.sampleRate));
+    let sum = 0;
+    for (let i = from; i < to; i++) sum += data[i] * data[i];
+    const rms = Math.sqrt(sum / Math.max(1, to - from));
+    if (rms > 1e-5) return target / rms;
+  }
   const size = Math.max(1, Math.floor(buffer.sampleRate * 0.3));
   let loudest = 0;
   for (let start = 0; start < data.length; start += size >> 1) {
@@ -87,67 +100,120 @@ const decoder = () => {
   return new Offline(1, 1, 48000);
 };
 
+// One channel is kept: the layers are panned and spread by the mix itself, and it halves the memory.
+function mono(ctx, buffer) {
+  if (buffer.numberOfChannels === 1) return buffer;
+  const out = ctx.createBuffer(1, buffer.length, buffer.sampleRate);
+  const to = out.getChannelData(0);
+  const left = buffer.getChannelData(0);
+  const right = buffer.getChannelData(1);
+  for (let i = 0; i < to.length; i++) to[i] = 0.5 * (left[i] + right[i]);
+  return out;
+}
+
 export class SampleBank {
   constructor() {
+    this.index = { instruments: {}, spaces: {} };
     this.instruments = {};
+    this.pending = {};
     this.spaces = {};
     this.status = 'none';
     this.message = '';
+    this.listeners = new Set();
   }
 
+  // Decoded and ready to play.
   has(name) { return !!this.instruments[name]; }
+  // Listed in the sample folder (maybe not decoded yet).
+  known(name) { return !!this.index.instruments[name]; }
+  on(listener) { this.listeners.add(listener); }
 
-  // The zone nearest to a note, and how far to transpose it.
+  // The zone for a note (its key range, else the nearest root), and how far to transpose it.
   zone(name, midi) {
     const inst = this.instruments[name];
     if (!inst) return null;
-    let best = inst.zones[0];
-    for (const zone of inst.zones) if (Math.abs(zone.root - midi) < Math.abs(best.root - midi)) best = zone;
+    let best = inst.zones.find((z) => z.lo !== undefined && midi >= z.lo && midi <= z.hi);
+    if (!best) {
+      best = inst.zones[0];
+      for (const zone of inst.zones) if (Math.abs(zone.root - midi) < Math.abs(best.root - midi)) best = zone;
+    }
     return { ...best, rate: 2 ** ((midi - best.root) / 12), gain: inst.gain };
   }
 
+  // The index only: which instruments and spaces exist.
   async load(indexUrl = '/__tangerine__/samples') {
     this.status = 'loading';
-    let index;
     try {
       const response = await fetch(indexUrl, { cache: 'no-store' });
       if (!response.ok) throw new Error('no index');
-      index = await response.json();
+      this.index = await response.json();
+      this.index.instruments ||= {};
+      this.index.spaces ||= {};
     } catch {
       this.status = 'none';
-      this.message = 'No sample folder: the local launcher lists samples/ next to Tangerine.';
+      this.message = 'No sample folder: the local launcher looks for samples/ next to Tangerine, or SAMPLES next to its folder.';
       return this;
     }
-    const ctx = decoder();
-    const decode = async (path) => {
-      const data = await (await fetch(path)).arrayBuffer();
-      return ctx.decodeAudioData(data);
-    };
-    const failed = [];
-    for (const [name, inst] of Object.entries(index.instruments || {})) {
-      const zones = [];
-      for (const file of inst.files) {
-        try {
-          const buffer = await decode(file.url);
-          const data = buffer.getChannelData(0);
-          const named = file.note ?? noteFromName(file.name);
-          const heard = measurePitch(data, buffer.sampleRate);
-          const root = named === null ? heard ?? 60 : heard === null ? named : named + 12 * Math.round((heard - named) / 12);
-          zones.push({ buffer, root, loop: loopPoints(data, buffer.sampleRate), name: file.name });
-        } catch { failed.push(`${name}/${file.name}`); }
-      }
-      if (!zones.length) continue;
-      zones.sort((a, b) => a.root - b.root);
-      const gain = (inst.gain ?? 1) * level(zones[Math.floor(zones.length / 2)].buffer, 0.4);
-      this.instruments[name] = { name, label: inst.label || name, zones, gain };
-    }
-    for (const [name, url] of Object.entries(index.spaces || {})) {
-      try { this.spaces[name] = await decode(url); } catch { failed.push(`_spaces/${name}`); }
-    }
-    const count = Object.keys(this.instruments).length;
-    this.status = count || Object.keys(this.spaces).length ? 'ready' : 'empty';
-    this.message = `${count} sampled instrument${count === 1 ? '' : 's'}, ${Object.keys(this.spaces).length} real space${Object.keys(this.spaces).length === 1 ? '' : 's'}.${failed.length ? ` Could not read: ${failed.slice(0, 4).join(', ')}${failed.length > 4 ? '…' : ''}` : ''}`;
+    const count = Object.keys(this.index.instruments).length;
+    const spaces = Object.keys(this.index.spaces).length;
+    this.status = count || spaces ? 'ready' : 'empty';
+    this.message = `${count} sampled instrument${count === 1 ? '' : 's'} and ${spaces} real space${spaces === 1 ? '' : 's'} found.`;
     return this;
+  }
+
+  // Decodes one instrument (once), then tells the listeners.
+  require(name) {
+    if (this.instruments[name]) return Promise.resolve(this.instruments[name]);
+    if (!this.pending[name]) this.pending[name] = this._decode(name).then((inst) => { for (const listener of this.listeners) listener(name, inst); return inst; });
+    return this.pending[name];
+  }
+
+  async requireSpace(name) {
+    if (this.spaces[name] || !this.index.spaces[name]) return this.spaces[name] || null;
+    try {
+      const ctx = decoder();
+      this.spaces[name] = await ctx.decodeAudioData(await (await fetch(this.index.spaces[name])).arrayBuffer());
+    } catch { this.spaces[name] = null; }
+    return this.spaces[name];
+  }
+
+  async _decode(name) {
+    const entry = this.index.instruments[name];
+    if (!entry) return null;
+    const ctx = decoder();
+    let files = entry.zones;
+    // Mapped zones (an SFZ) are kept whole; a folder of single notes keeps about one every three semitones.
+    if (!files.some((f) => f.lo !== undefined) && files.length > 16) {
+      const step = Math.max(1, Math.round(files.length / 16));
+      files = files.filter((_, i) => i % step === 0);
+    }
+    const zones = [];
+    for (const file of files) {
+      try {
+        const buffer = mono(ctx, await ctx.decodeAudioData(await (await fetch(file.url)).arrayBuffer()));
+        const data = buffer.getChannelData(0);
+        const zone = { buffer, lo: file.lo, hi: file.hi, name: file.name };
+        if (file.key !== undefined) zone.root = file.key - (file.tune || 0) / 100;
+        else {
+          zone.named = file.note ?? noteFromName(file.name);
+          zone.heard = measurePitch(data, buffer.sampleRate);
+        }
+        zone.mapped = !!(file.loop && file.rate);
+        zone.loop = zone.mapped ? [file.loop[0] / file.rate, file.loop[1] / file.rate] : loopPoints(data, buffer.sampleRate);
+        zones.push(zone);
+      } catch { /* An unreadable file is left out. */ }
+    }
+    if (!zones.length) return null;
+    // Named notes keep their names; the measurement only says which octave convention the
+    // library uses, decided once for the whole instrument (a choir's pitch is easily misheard).
+    const shifts = zones.filter((z) => z.named != null && z.heard != null).map((z) => Math.round((z.heard - z.named) / 12)).sort((a, b) => a - b);
+    const octave = shifts.length ? shifts[Math.floor(shifts.length / 2)] : 0;
+    for (const z of zones) if (z.root === undefined) z.root = z.named != null ? z.named + 12 * octave : z.heard ?? 60;
+    zones.sort((a, b) => a.root - b.root);
+    const middle = zones[Math.floor(zones.length / 2)];
+    const gain = (entry.gain ?? 1) * level(middle.buffer, 0.4, middle.mapped ? middle.loop : null);
+    this.instruments[name] = { name, label: entry.label || name, zones, gain };
+    return this.instruments[name];
   }
 }
 
@@ -155,8 +221,8 @@ export const BANK = new SampleBank();
 
 // Sampled sounds as the audio module sees them: SOUNDS[layer]['s:<folder>'].
 export const sampledKey = (name) => `s:${name}`;
-export function sampledSound(inst) {
-  return { label: `${inst.label} (sample)`, sample: inst.name, cutoff: 12000, env: 0.15, q: 0.7, track: 0, gain: 1 };
+export function sampledSound(name, entry) {
+  return { label: `${entry.label || name} (sample)`, sample: name, cutoff: 12000, env: 0.15, q: 0.7, track: 0, gain: 1 };
 }
 
 // ---------------------------------------------------------------- colours
@@ -173,64 +239,84 @@ export const COLOURS = {
     layers: {},
   },
   phaedra: {
-    label: 'Phaedra 1974 · Mellotron, Moog, e-piano',
-    note: 'Slow, vintage, grainy: Mellotron choir and strings over a Moog bass. Wet and far.',
+    label: 'Phaedra 1974 · Mellotron, Moog',
+    note: 'Slow, vintage, grainy: Mellotron choir and orchestra over a Minimoog. Wet and far.',
     layers: {
-      pad: ['s:mellotron-choir', 's:mellotron-strings', 'choir'],
-      air: ['s:mellotron-violins', 's:mellotron-strings', 'strings'],
-      cello: ['s:mellotron-cello', 'cello'],
-      theme: ['s:mellotron-flute', 'flute'],
-      lead: ['s:mellotron-flute', 'tape'],
-      bass: ['s:moog-bass', 'moog'],
-      arp: ['s:moog-sequence', 'pluck'],
-      seq2: ['s:moog-sequence', 'pluck'],
-      motif: ['s:e-piano', 'soft'],
-      bells: ['s:e-piano', 'bell'],
-      drone: ['s:mellotron-choir', 'organ'],
-      pulse: ['s:e-piano', 'marimba'],
+      pad: ['s:mellotron-choir', 'choir'],
+      air: ['s:mellotron-orchestra', 'strings'],
+      drone: ['s:mellotron-organ', 'organ'],
+      cello: ['s:moog-bowed', 'cello'],
+      bass: ['s:minimoog-bass', 'moog'],
+      arp: ['s:moog-plucky', 'pluck'],
+      seq2: ['s:moog-tri', 'pluck'],
+      motif: ['s:minimoog-flute', 'flute'],
+      lead: ['s:minimoog-lead', 'tape'],
+      theme: ['s:moog-piccolo', 'flute'],
+      bells: ['s:minimoog-churchbell', 'bell'],
+      pulse: ['s:moog-glassping', 'marimba'],
     },
     space: ['church', 'cathedral', 'hall'],
     global: { wet: 0.68, space: 0.8, bpm: 54 },
   },
   stratosfear: {
     label: 'Stratosfear / Exit · Prophet, Jupiter, OB',
-    note: 'Polysynth 1976–1983: brassy pads, bright sequences, glassy bells.',
+    note: 'Polysynths 1976–1983: lush strings, bright sequences, brassy leads, glassy bells.',
     layers: {
-      pad: ['s:prophet-pad', 's:ob-pad', 's:jupiter-pad', 'strings'],
-      air: ['s:jupiter-strings', 's:ob-pad', 'glass'],
-      cello: ['s:prophet-bass', 'synth'],
-      bass: ['s:prophet-bass', 's:jupiter-bass', 'pulse'],
-      arp: ['s:jupiter-sequence', 's:prophet-sequence', 'glass'],
-      seq2: ['s:prophet-sequence', 's:jupiter-sequence', 'pulse'],
-      motif: ['s:prophet-lead', 'lead'],
-      lead: ['s:jupiter-lead', 's:prophet-lead', 'tape'],
-      theme: ['s:prophet-lead', 'voice'],
-      bells: ['s:jupiter-bells', 'glass'],
-      drone: ['s:ob-pad', 'saw'],
-      pulse: ['s:jupiter-sequence', 'glass'],
+      pad: ['s:ob-lushstrings', 's:prophet-strings', 'strings'],
+      air: ['s:jupiter-highstrings', 'glass'],
+      drone: ['s:ob-lowpad', 'saw'],
+      cello: ['s:moog-bowed', 'synth'],
+      bass: ['s:prophet-bass', 'pulse'],
+      arp: ['s:jupiter-pulse', 'glass'],
+      seq2: ['s:prophet-bleep', 'pulse'],
+      motif: ['s:jupiter-mellow', 'lead'],
+      lead: ['s:prophet-brass', 'tape'],
+      theme: ['s:jupiter-sine', 'voice'],
+      bells: ['s:jupiter-bell', 'glass'],
+      pulse: ['s:jupiter-microdot', 'glass'],
     },
     space: ['hall', 'plate'],
     global: { wet: 0.55, space: 0.6, bpm: 96 },
   },
   safari: {
-    label: 'Moon Safari · Rhodes, Moog, Solina',
-    note: 'Warm and close: e-piano, string machine, round Moog bass. Less reverb.',
+    label: 'Moon Safari · string machine, Moog, keys',
+    note: 'Warm and close: Juno string machine, Minimoog, a Moog electric piano. Less reverb.',
     layers: {
-      pad: ['s:solina', 's:string-machine', 'warm'],
-      air: ['s:solina', 's:string-machine', 'glass'],
-      cello: ['s:moog-bass', 'dark'],
-      bass: ['s:moog-bass', 'round'],
-      arp: ['s:e-piano', 'soft'],
-      seq2: ['s:e-piano', 'mallet'],
-      motif: ['s:moog-lead', 'flute'],
-      lead: ['s:moog-lead', 'sine'],
-      theme: ['s:moog-lead', 'ocarina'],
-      bells: ['s:e-piano', 'bell'],
-      drone: ['s:solina', 'organ'],
-      pulse: ['s:e-piano', 'marimba'],
+      pad: ['s:juno-stringmachine', 'warm'],
+      air: ['s:juno-elkastrings', 'glass'],
+      drone: ['s:juno-drone', 'organ'],
+      cello: ['s:moog-bowed', 'dark'],
+      bass: ['s:minimoog-softbass', 'round'],
+      arp: ['s:moog-roady', 'soft'],
+      seq2: ['s:moog-pianish', 'mallet'],
+      motif: ['s:minimoog-beautytone', 'flute'],
+      lead: ['s:minimoog-simplewave', 'sine'],
+      theme: ['s:minimoog-flute', 'ocarina'],
+      bells: ['s:moog-longtine', 'bell'],
+      pulse: ['s:moog-roady', 'marimba'],
     },
     space: ['room', 'studio'],
     global: { wet: 0.35, space: 0.35, bpm: 84 },
+  },
+  fairlight: {
+    label: 'Fairlight / Zoolook · CMI Series III',
+    note: 'Digital 1982–1986: sampled string sections, choir, horns, vibes and kalimba, a little grainy.',
+    layers: {
+      pad: ['s:fairlight-strings', 'strings'],
+      air: ['s:fairlight-violins', 'strings'],
+      drone: ['s:fairlight-choir', 'choir'],
+      cello: ['s:fairlight-cellos', 'cello'],
+      bass: ['s:fairlight-basses', 'deep'],
+      arp: ['s:fairlight-kalimba', 'glass'],
+      seq2: ['s:fairlight-pizzicato', 'mallet'],
+      motif: ['s:fairlight-voice', 'soft'],
+      lead: ['s:fairlight-horn', 'reed'],
+      theme: ['s:fairlight-recorder', 'flute'],
+      bells: ['s:fairlight-vibes', 'glass'],
+      pulse: ['s:fairlight-musicbox', 'marimba'],
+    },
+    space: ['hall', 'church'],
+    global: { wet: 0.58, space: 0.65, bpm: 72 },
   },
 };
 
@@ -251,7 +337,13 @@ export function colourPool(colour, layer, sounds) {
   return sampled.length ? sampled : pool;
 }
 
-export function colourSpace(colour) {
-  const names = COLOURS[colour]?.space || [];
-  return names.map((name) => BANK.spaces[name]).find(Boolean) || null;
+// The colour's real space, decoded (or null: the synthesized one).
+export async function colourSpace(colour) {
+  const name = (COLOURS[colour]?.space || []).find((n) => BANK.index.spaces[n]);
+  return name ? BANK.requireSpace(name) : null;
+}
+
+// The sampled instruments a colour plays, as names.
+export function colourSamples(colour) {
+  return [...new Set(Object.values(COLOURS[colour]?.layers || {}).flat().filter((n) => n.startsWith('s:')).map((n) => n.slice(2)))];
 }
