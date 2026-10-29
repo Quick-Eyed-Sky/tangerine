@@ -221,8 +221,17 @@ export const BANK = new SampleBank();
 
 // Sampled sounds as the audio module sees them: SOUNDS[layer]['s:<folder>'].
 export const sampledKey = (name) => `s:${name}`;
-export function sampledSound(name, entry) {
-  return { label: `${entry.label || name} (sample)`, sample: name, cutoff: 12000, env: 0.15, q: 0.7, track: 0, gain: 1 };
+// A sampled line sings: the vibrato comes in after a moment, as on the synthesized leads.
+const SAMPLE_VIBRATO = {
+  lead: { rate: 5.2, depth: 11, delay: 0.45 },
+  theme: { rate: 5.5, depth: 9, delay: 0.5 },
+  motif: { rate: 4.9, depth: 7, delay: 0.6 },
+  cello: { rate: 5.1, depth: 8, delay: 0.7 },
+};
+export function sampledSound(name, entry, layer) {
+  const sound = { label: `${entry.label || name} (sample)`, sample: name, cutoff: 12000, env: 0.15, q: 0.7, track: 0, gain: 1 };
+  if (SAMPLE_VIBRATO[layer]) sound.vibrato = SAMPLE_VIBRATO[layer];
+  return sound;
 }
 
 // ---------------------------------------------------------------- colours
@@ -250,7 +259,7 @@ export const COLOURS = {
       arp: ['s:moog-plucky', 'pluck'],
       seq2: ['s:moog-tri', 'pluck'],
       motif: ['s:minimoog-flute', 'flute'],
-      lead: ['s:minimoog-lead', 'tape'],
+      lead: ['s:minimoog-lead', 's:minimoog-romantic', 'tape'],
       theme: ['s:moog-piccolo', 'flute'],
       bells: ['s:minimoog-churchbell', 'bell'],
       pulse: ['s:moog-glassping', 'marimba'],
@@ -262,41 +271,41 @@ export const COLOURS = {
     label: 'Stratosfear / Exit · Prophet, Jupiter, OB',
     note: 'Polysynths 1976–1983: lush strings, bright sequences, brassy leads, glassy bells.',
     layers: {
-      pad: ['s:ob-lushstrings', 's:prophet-strings', 'strings'],
-      air: ['s:jupiter-highstrings', 'glass'],
-      drone: ['s:ob-lowpad', 'saw'],
-      cello: ['s:moog-bowed', 'synth'],
+      pad: ['s:ob-lushstrings', 's:prophet-strings', 's:ob-majestic', 'strings'],
+      air: ['s:jupiter-highstrings', 's:prophet-sawstrings', 'glass'],
+      drone: ['s:ob-lowpad', 's:jupiter-pwm', 'saw'],
+      cello: ['s:ob-strings', 's:moog-bowed', 'synth'],
       bass: ['s:prophet-bass', 'pulse'],
       arp: ['s:jupiter-pulse', 'glass'],
       seq2: ['s:prophet-bleep', 'pulse'],
-      motif: ['s:jupiter-mellow', 'lead'],
-      lead: ['s:prophet-brass', 'tape'],
-      theme: ['s:jupiter-sine', 'voice'],
+      motif: ['s:jupiter-mellow', 's:prophet-triangle', 'lead'],
+      lead: ['s:prophet-brass', 's:ob-tone', 'tape'],
+      theme: ['s:jupiter-sine', 's:ob-tone', 'voice'],
       bells: ['s:jupiter-bell', 'glass'],
       pulse: ['s:jupiter-microdot', 'glass'],
     },
     space: ['hall', 'plate'],
-    global: { wet: 0.55, space: 0.6, bpm: 96 },
+    global: { wet: 0.6, space: 0.65, bpm: 96 },
   },
   safari: {
     label: 'Moon Safari · string machine, Moog, keys',
-    note: 'Warm and close: Juno string machine, Minimoog, a Moog electric piano. Less reverb.',
+    note: 'Warm and dreamy: Juno strings, Minimoog, a Moog electric piano, in a soft hall.',
     layers: {
-      pad: ['s:juno-stringmachine', 'warm'],
-      air: ['s:juno-elkastrings', 'glass'],
+      pad: ['s:juno-strings', 's:juno-elkastrings', 'warm'],
+      air: ['s:juno-tremolo', 's:juno-elkastrings', 'glass'],
       drone: ['s:juno-drone', 'organ'],
       cello: ['s:moog-bowed', 'dark'],
       bass: ['s:minimoog-softbass', 'round'],
       arp: ['s:moog-roady', 'soft'],
       seq2: ['s:moog-pianish', 'mallet'],
-      motif: ['s:minimoog-beautytone', 'flute'],
-      lead: ['s:minimoog-simplewave', 'sine'],
+      motif: ['s:minimoog-bloomy', 'flute'],
+      lead: ['s:minimoog-softfocus', 's:minimoog-simplewave', 'sine'],
       theme: ['s:minimoog-flute', 'ocarina'],
       bells: ['s:moog-longtine', 'bell'],
       pulse: ['s:moog-roady', 'marimba'],
     },
-    space: ['room', 'studio'],
-    global: { wet: 0.35, space: 0.35, bpm: 84 },
+    space: ['hall', 'plate', 'room', 'studio'],
+    global: { wet: 0.52, space: 0.55, bpm: 84 },
   },
   fairlight: {
     label: 'Fairlight / Zoolook · CMI Series III',
@@ -317,6 +326,26 @@ export const COLOURS = {
     },
     space: ['hall', 'church'],
     global: { wet: 0.58, space: 0.65, bpm: 72 },
+  },
+  grand: {
+    label: 'Grand mix · every instrument',
+    note: 'Mellotron, Fairlight, Moog, Prophet, Jupiter, Oberheim and Juno together: "Sounds change" moves through all of them.',
+    layers: {
+      pad: ['s:mellotron-choir', 's:fairlight-strings', 's:ob-lushstrings', 's:mellotron-strings', 's:prophet-strings', 's:juno-strings', 's:ob-majestic', 's:fairlight-choir', 'strings'],
+      air: ['s:fairlight-violins', 's:jupiter-highstrings', 's:mellotron-orchestra', 's:juno-tremolo', 's:prophet-sawstrings', 's:juno-elkastrings', 'strings'],
+      drone: ['s:mellotron-organ', 's:ob-lowpad', 's:juno-drone', 's:jupiter-pwm', 's:fairlight-choir', 'organ'],
+      cello: ['s:fairlight-cellos', 's:moog-bowed', 's:ob-strings', 'cello'],
+      bass: ['s:minimoog-bass', 's:fairlight-basses', 's:prophet-bass', 's:minimoog-softbass', 'moog'],
+      arp: ['s:moog-plucky', 's:fairlight-kalimba', 's:jupiter-pulse', 's:moog-roady', 's:jupiter-ruby', 'pluck'],
+      seq2: ['s:fairlight-pizzicato', 's:prophet-bleep', 's:moog-tri', 's:moog-pianish', 'mallet'],
+      motif: ['s:minimoog-bloomy', 's:fairlight-voice', 's:jupiter-mellow', 's:prophet-triangle', 's:minimoog-flute', 'flute'],
+      lead: ['s:minimoog-lead', 's:fairlight-horn', 's:prophet-brass', 's:minimoog-softfocus', 's:ob-tone', 's:mellotron-brass', 's:minimoog-swanlake', 'tape'],
+      theme: ['s:mellotron-flute', 's:fairlight-recorder', 's:moog-piccolo', 's:jupiter-sine', 's:minimoog-flute', 'flute'],
+      bells: ['s:fairlight-vibes', 's:minimoog-churchbell', 's:jupiter-bell', 's:moog-longtine', 'bell'],
+      pulse: ['s:fairlight-musicbox', 's:moog-glassping', 's:jupiter-microdot', 'marimba'],
+    },
+    space: ['hall', 'church', 'cathedral', 'plate'],
+    global: { wet: 0.6, space: 0.7, bpm: 72 },
   },
 };
 

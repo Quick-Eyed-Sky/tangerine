@@ -1056,7 +1056,7 @@ BANK.on(() => {
   renderColour();
 });
 BANK.load().then(() => {
-  for (const [name, entry] of Object.entries(BANK.index.instruments)) for (const id of LAYER_IDS) SOUNDS[id][sampledKey(name)] = sampledSound(name, entry);
+  for (const [name, entry] of Object.entries(BANK.index.instruments)) for (const id of LAYER_IDS) SOUNDS[id][sampledKey(name)] = sampledSound(name, entry, id);
   for (const id of LAYER_IDS) {
     const select = cards[id].card.querySelector('[data-field="sound"]');
     select.innerHTML = soundOptions(id);

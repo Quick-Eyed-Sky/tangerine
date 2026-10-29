@@ -140,7 +140,14 @@ def sample_index(root):
         elif spec.get('folder') and inside(spec['folder']):
             zones = [{'name': p.name, 'url': url(p)} for p in audio_in(inside(spec['folder']))]
         elif spec.get('files'):
-            zones = [{'name': p.name, 'url': url(p)} for p in map(inside, spec['files']) if p and p.is_file()]
+            # roots: the measured MIDI note of each file, which wins over the name (decimals keep a detuned synth in tune).
+            roots = spec.get('roots') or []
+            for i, relative in enumerate(spec['files']):
+                path = inside(relative)
+                if path and path.is_file():
+                    zones.append({'name': path.name, 'url': url(path)})
+                    if i < len(roots) and isinstance(roots[i], (int, float)):
+                        zones[-1]['key'] = roots[i]
         if zones:
             index['instruments'][name] = {'label': spec.get('label', name), 'gain': spec.get('gain', 1), 'zones': zones[:128]}
 

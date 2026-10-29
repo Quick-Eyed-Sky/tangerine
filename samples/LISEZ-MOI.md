@@ -20,5 +20,7 @@ Tu peux ranger tes packs tels que tu les as téléchargés.
 - **Changer un son** : il suffit de remplacer un nom de fichier dans `instruments.json`, puis de recharger la page.
 - **Volume d'un instrument** : `"gain": 1.5` le rend plus fort, `0.7` plus doux.
 - **La hauteur des notes** : un nom de note dans le nom du fichier (`Choir C3.wav`) fixe sa hauteur. Sinon, Tangerine la mesure à l'écoute.
+- **`roots`** : la note MIDI de chaque fichier de `files`, dans le même ordre (60 = do 4 ; les décimales corrigent un synthé un peu faux, `63.68`). Elle passe avant tout le reste.
+- **Une note, pas un accord** : beaucoup de pads Legowelt sont des accords enregistrés. Transposés sur l'harmonie de Tangerine, ils sonnent faux. Il faut choisir des fichiers qui ne contiennent qu'une note (souvent `oneNote`, `simple`, `Toon`…).
 - **Les réverbérations** : un dossier `_spaces/` dans le dossier des samples reçoit les vraies réverbérations (fichiers WAV de réponse impulsionnelle). Les noms reconnus par les couleurs sont `church`, `cathedral`, `hall`, `plate`, `room` et `studio`.
 - **Chargement à la demande** : un instrument n'est chargé que lorsqu'une couleur ou une couche le demande. Les premières secondes, la couche peut encore jouer en synthèse.

@@ -468,19 +468,24 @@ export class Graph {
 
   // One sampled note, as [[source, gain]] like the oscillators: the nearest zone,
   // transposed; it loops on its steady middle when asked to hold.
+  // A held sample plays twice, a few cents apart, as an ensemble would: a single one-shot sounds flat.
   _samples(sound, midi, t, drift, hold, sum) {
     const zone = BANK.zone(sound.sample, midi);
-    const src = this.ctx.createBufferSource();
-    src.buffer = zone.buffer;
-    src.playbackRate.value = zone.rate;
-    if (hold && zone.loop) { src.loop = true; [src.loopStart, src.loopEnd] = zone.loop; }
-    if (drift) drift.connect(src.detune);
-    const g = this.ctx.createGain();
-    g.gain.value = zone.gain;
-    src.connect(g);
-    g.connect(sum);
-    src.start(t);
-    return [[src, g]];
+    const voices = hold ? [[-6, 0, 0.62], [6, 0.037, 0.62]] : [[0, 0, 1]];
+    return voices.map(([cents, offset, level]) => {
+      const src = this.ctx.createBufferSource();
+      src.buffer = zone.buffer;
+      src.playbackRate.value = zone.rate;
+      src.detune.value = cents;
+      if (hold && zone.loop) { src.loop = true; [src.loopStart, src.loopEnd] = zone.loop; }
+      if (drift) drift.connect(src.detune);
+      const g = this.ctx.createGain();
+      g.gain.value = zone.gain * level;
+      src.connect(g);
+      g.connect(sum);
+      src.start(t, offset);
+      return [src, g];
+    });
   }
 
   // A real reverberation for the vast room (an AudioBuffer), or null: the synthesized one.
