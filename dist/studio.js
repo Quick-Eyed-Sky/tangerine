@@ -1,6 +1,6 @@
 import { DiskRecorder } from './disk-recorder.js';
 
-export function initStudio({ getAudio, notify }) {
+export function initStudio({ getAudio, notify, startFromBeginning }) {
   const $ = (id) => document.getElementById(id);
   const duration = (seconds) => {
     const s = Math.max(0, Math.floor(seconds));
@@ -72,6 +72,43 @@ export function initStudio({ getAudio, notify }) {
   $('quickRecord').addEventListener('click', () => record());
   $('recordOtherTab').addEventListener('click', () => record(true));
 
+  // Timed recording: a length slider, and one button that starts it from the beginning.
+  const minutesLabel = (m) => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`);
+  const timedSlider = $('timedMinutes');
+  function renderTimed() {
+    const m = Number(timedSlider.value);
+    $('timedMinutesValue').textContent = minutesLabel(m);
+    const seconds = (v) => (v >= 60 ? `${Math.floor(v / 60)} min${v % 60 ? ` ${v % 60} s` : ''}` : `${v} s`);
+    $('timedIntroValue').textContent = seconds(Number($('timedIntro').value));
+    $('timedOutroValue').textContent = seconds(Number($('timedOutro').value));
+    const bytes = m * 60 * 44100 * 4;
+    const size = bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1).replace('.', ',')} GB` : `${Math.round(bytes / 1e6)} MB`;
+    $('timedSize').textContent = `About ${size} on your Mac (WAV, 44.1 kHz stereo).`;
+    $('timedText').textContent = recorder.active
+      ? (recorder.limitSeconds ? `Recording from the beginning · ${duration(recorder.seconds)} of ${minutesLabel(recorder.limitSeconds / 60)}` : 'Recording…')
+      : `Start from the beginning and record ${minutesLabel(m)}`;
+    $('timedRecord').disabled = recorder.active || !available;
+  }
+  // Open folder: the recording in progress or the last one, or the Recordings folder.
+  document.querySelectorAll('.open-folder').forEach((button) => button.addEventListener('click', async () => {
+    try {
+      const response = await fetch('/__tangerine__/recordings/reveal', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: recorder.session || null }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'The folder could not be opened.');
+      notify(`Opened in the Finder: ${result.name}`);
+    } catch (error) { notify(error.message || 'The folder could not be opened.'); }
+  }));
+  for (const slider of [timedSlider, $('timedIntro'), $('timedOutro')]) slider.addEventListener('input', renderTimed);
+  $('timedRecord').addEventListener('click', async () => {
+    try { await startFromBeginning(recorder, Number(timedSlider.value), { intro: Number($('timedIntro').value), outro: Number($('timedOutro').value) }); }
+    catch (error) { notify(error.message || 'The recording could not start.'); }
+    renderRecording();
+  });
+  renderTimed();
+
   function renderRecording() {
     if (!available) {
       const active = !!getAudio().recording;
@@ -98,6 +135,10 @@ export function initStudio({ getAudio, notify }) {
     $('quickRecordTime').textContent = duration(recorder.seconds);
     $('recordLight').classList.toggle('active', active);
     $('recordOtherTab').disabled = recorder.active || !available || !navigator.mediaDevices?.getDisplayMedia;
+    document.querySelectorAll('.open-folder').forEach((button) => {
+      button.textContent = recorder.session ? 'Open this recording’s folder ↗' : 'Open the Recordings folder ↗';
+    });
+    renderTimed();
     if (!available) $('diskStatus').textContent = 'Direct-to-Mac recording is available with the local launcher. Recent passages remain available below.';
     else if (recorder.error) $('diskStatus').textContent = `${recorder.error.message} ${duration(recorder.savedSeconds)} confirmed on disk.`;
     else if (active) $('diskStatus').textContent = `● Recording ${recorder.sourceName.toLowerCase()} · ${duration(recorder.savedSeconds)} written to disk${recorder.pendingBytes ? ' · writing…' : ''}`;
@@ -130,10 +171,11 @@ export function initStudio({ getAudio, notify }) {
     available = info?.available === true; folder = info?.folder || '';
     $('portableRecording').hidden = available;
     $('diskControls').hidden = !available;
+    $('timedBlock').hidden = !available;
     $('recordingPath').hidden = !available;
     $('diskFiles').hidden = !available;
     $('localDownload').hidden = available;
-    $('editionLabel').textContent = available ? 'LOCAL EDITION · 1.3' : 'BROWSER EDITION · 1.3';
+    $('editionLabel').textContent = available ? 'TANGERINE II · LOCAL' : 'TANGERINE II · BROWSER';
     $('diskTitle').textContent = available ? 'Record to this computer' : 'Keep a long session';
     $('diskIntro').textContent = available
       ? 'Everything from Record until Stop. Saved as WAV directly in the local Recordings folder.'

@@ -11,7 +11,7 @@ name = f'Tangerine-v{version}'
 out = root / 'release'
 out.mkdir(exist_ok=True)
 archive = out / f'{name}.zip'
-items = ['dist', 'docs', 'scripts', 'tests', 'tools', 'Tangerine.command',
+items = ['dist', 'docs', 'scripts', 'tests', 'tools', 'Tangerine II.command',
          'run.sh', 'package.json', 'README.md', 'LISEZ-MOI.md', 'READ-ME.txt',
          'RELEASE.md', 'PUBLISHING.md', 'LICENSE', '.gitignore']
 with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as target:

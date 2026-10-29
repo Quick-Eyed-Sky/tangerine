@@ -16,6 +16,7 @@ import { MIDI_LAYOUT } from './midi.js';
 import { Journal, sliceToMidi } from './journal.js';
 import { sliceToAbc, sliceToLeadSheet } from './abc.js';
 import { chordName } from './theory.js';
+import { BANK } from './samples.js';
 
 const clamp = (value, low = 0, high = 1) => Math.min(high, Math.max(low, Number.isFinite(value) ? value : low));
 const dbToGain = (db) => (db <= -58 ? 0 : 10 ** (db / 20));
@@ -365,7 +366,20 @@ export class Graph {
   // Heard: switched on (or the one being listened to alone), and not MIDI only.
   audible(id) {
     if (this.midiOnly) return false;
+    if (this.stage && !this.stage.has(id)) return false;
     return this.solo ? this.solo === id : !!this.layers[id].on;
+  }
+
+  // A staged entry or exit (a whole piece's intro and outro): only these layers sound,
+  // or null: all of them. A layer that leaves fades with its own release, the rest stay as loud.
+  setStage(ids, t = this.ctx.currentTime, fade = 0.4) {
+    this.stage = ids ? new Set(ids) : null;
+    for (const id of LAYER_IDS) {
+      const gain = this.channels[id].level.gain;
+      if (gain.cancelAndHoldAtTime) gain.cancelAndHoldAtTime(t); else gain.cancelScheduledValues(t);
+      gain.setTargetAtTime(this.audible(id) ? this.layers[id].level : 0, t, fade);
+    }
+    this.refreshHolds(t);
   }
 
   // The slow drift of one setting of one layer: a factor around 1.
@@ -458,10 +472,61 @@ export class Graph {
     return osc;
   }
 
+  // A sampled sound that is not installed (or not loaded yet) plays the layer's first synth.
+  _sound(id, name) {
+    const sound = SOUNDS[id][name] || Object.values(SOUNDS[id])[0];
+    if (sound.sample && !BANK.has(sound.sample)) return Object.values(SOUNDS[id]).find((x) => !x.sample);
+    return sound;
+  }
+
+  // One sampled note, as [[source, gain]] like the oscillators: the nearest zone,
+  // transposed; it loops on its steady middle when asked to hold.
+  // A held sample plays twice, a few cents apart, as an ensemble would: a single one-shot sounds flat.
+  _samples(sound, midi, t, drift, hold, sum) {
+    const zone = BANK.zone(sound.sample, midi);
+    const voices = hold ? [[-6, 0, 0.62], [6, 0.037, 0.62]] : [[0, 0, 1]];
+    return voices.map(([cents, offset, level]) => {
+      const src = this.ctx.createBufferSource();
+      src.buffer = zone.buffer;
+      src.playbackRate.value = zone.rate;
+      src.detune.value = cents;
+      if (hold && zone.loop) { src.loop = true; [src.loopStart, src.loopEnd] = zone.loop; }
+      if (drift) drift.connect(src.detune);
+      const g = this.ctx.createGain();
+      g.gain.value = zone.gain * level;
+      src.connect(g);
+      g.connect(sum);
+      src.start(t, offset);
+      return [src, g];
+    });
+  }
+
+  // A real reverberation for the vast room (an AudioBuffer), or null: the synthesized one.
+  // It is brought to the synthesized one's energy, so the Space slider keeps its meaning.
+  setSpace(impulse) {
+    const vast = this.rooms.vast;
+    vast.synthetic ||= vast.convolver.buffer;
+    if (!impulse) { vast.convolver.buffer = vast.synthetic; return; }
+    const energy = (buffer) => {
+      let sum = 0;
+      for (let c = 0; c < buffer.numberOfChannels; c++) for (const x of buffer.getChannelData(c)) sum += x * x;
+      return sum / buffer.numberOfChannels;
+    };
+    const channels = Math.min(2, impulse.numberOfChannels);
+    const copy = this.ctx.createBuffer(channels, impulse.length, impulse.sampleRate);
+    const scale = Math.sqrt(energy(vast.synthetic) / Math.max(1e-9, energy(impulse)));
+    for (let c = 0; c < channels; c++) {
+      const from = impulse.getChannelData(c);
+      const to = copy.getChannelData(c);
+      for (let i = 0; i < from.length; i++) to[i] = from[i] * scale;
+    }
+    vast.convolver.buffer = copy;
+  }
+
   playSequenced(id, event, t) {
     const ctx = this.ctx;
     const s = this.layers[id];
-    const sound = SOUNDS[id][s.sound] || Object.values(SOUNDS[id])[0];
+    const sound = this._sound(id, s.sound);
     const ch = this.channels[id];
     const acc = event.accent / 7;
     const vel = event.velocity;
@@ -482,7 +547,10 @@ export class Graph {
     const end = tRel + r * 2 + 0.05;
 
     const sum = ctx.createGain();
-    const oscs = sound.osc.map(([type, semis, cents, gain]) => {
+    const zone = sound.sample && BANK.zone(sound.sample, event.midi);
+    const long = zone && tRel - t > 0.8 * zone.buffer.duration / zone.rate;
+    // Short notes sound softer than the same sample held: they get a lift to sit like the synths.
+    const oscs = sound.sample ? this._samples(sound, event.midi, t, ch.drift, long, sum).map(([src, g]) => { g.gain.value *= 2.5; src.stop(end); return [src, g]; }) : sound.osc.map(([type, semis, cents, gain]) => {
       const osc = this._oscillator(type, freq, semis, cents + (unit(this.seed, id, event.step, gain) - 0.5) * 4, t, ch.drift);
       const g = ctx.createGain();
       g.gain.value = gain;
@@ -549,7 +617,7 @@ export class Graph {
   playBell(event, t) {
     const ctx = this.ctx;
     const s = this.layers.bells;
-    const sound = SOUNDS.bells[s.sound] || SOUNDS.bells.bell;
+    const sound = this._sound('bells', s.sound);
     const ring = Math.max(0.2, s.d * this._drift('bells', 'decay', 0.6));
     if (s.on) {
       this._sendMidi('bells', event.midi, event.velocity, t, Math.min(ring, 2));
@@ -563,7 +631,18 @@ export class Graph {
     vca.connect(ch.input);
     const nodes = [vca];
     let last = null;
-    for (const [ratio, gain, length] of sound.partials) {
+    if (sound.sample) {
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0, t);
+      env.gain.linearRampToValueAtTime(0.6, t + Math.max(0.001, s.a));
+      env.gain.setTargetAtTime(0, t + Math.max(0.001, s.a), ring / 3);
+      env.connect(vca);
+      const [[src, g]] = this._samples(sound, event.midi, t, ch.drift, false, env);
+      src.stop(t + ring * 1.6 + 0.1);
+      nodes.push(env, src, g);
+      last = src;
+    }
+    for (const [ratio, gain, length] of sound.sample ? [] : sound.partials) {
       if (freq * ratio > 16000) continue;
       const osc = this._oscillator('sine', freq * ratio, 0, 0, t, ch.drift);
       const env = ctx.createGain();
@@ -579,7 +658,7 @@ export class Graph {
     }
     if (last) {
       last.onended = () => {
-        for (const node of nodes) { if (node instanceof OscillatorNode) { try { ch.drift.disconnect(node.detune); } catch {} } node.disconnect(); }
+        for (const node of nodes) { if (node instanceof AudioScheduledSourceNode) { try { ch.drift.disconnect(node.detune); } catch {} } node.disconnect(); }
       };
     }
     this._feed('bells', event.midi, t, 1.2);
@@ -602,12 +681,12 @@ export class Graph {
     if (this.journal && step !== undefined && id !== 'pad') this.journal.hold(id, s.on ? notes : [], step);
     const audible = this.audible(id);
     for (const [midi, voice] of voices) {
-      if (notes.includes(midi) && voice.sound === s.sound && audible) continue;
+      if (notes.includes(midi) && voice.real === this._sound(id, s.sound) && audible) continue;
       this._release(id, midi, voice, t);
     }
     this._holdMidi(id, s.on ? notes : [], t);
     if (!audible) return;
-    const sound = SOUNDS[id][s.sound] || Object.values(SOUNDS[id])[0];
+    const sound = this._sound(id, s.sound);
     ch.holdFilter.frequency.setTargetAtTime(clamp(sound.cutoff * this.spiral(id, t).bright * this._drift(id, 'bright', 0.5), 200, 9000), t, 2.5);
     for (const midi of notes) {
       if (voices.has(midi)) continue;
@@ -632,7 +711,7 @@ export class Graph {
     vca.gain.setTargetAtTime(top * Math.max(0.05, s.s), t + Math.max(0.01, s.a), Math.max(0.05, s.d) / 3);
     const sum = ctx.createGain();
     const nodes = [vca, sum];
-    const oscs = sound.osc.map(([type, semis, cents, gain]) => {
+    const oscs = sound.sample ? this._samples(sound, midi, t, ch.drift, true, sum).map(([src, g]) => { nodes.push(src, g); return src; }) : sound.osc.map(([type, semis, cents, gain]) => {
       const osc = this._oscillator(type, freq, semis, cents, t, ch.drift);
       const g = ctx.createGain();
       g.gain.value = gain;
@@ -641,7 +720,7 @@ export class Graph {
       nodes.push(osc, g);
       return osc;
     });
-    if (sound.formants) {
+    if (sound.formants && !sound.sample) {
       for (const [hz, gain] of sound.formants) {
         const band = ctx.createBiquadFilter();
         band.type = 'bandpass';
@@ -658,7 +737,7 @@ export class Graph {
       sum.connect(vca);
     }
     vca.connect(ch.holdFilter);
-    return { vca, oscs, nodes, sound: s.sound, released: false };
+    return { vca, oscs, nodes, sound: s.sound, real: sound, released: false };
   }
 
   _release(id, midi, voice, t) {
@@ -671,7 +750,7 @@ export class Graph {
       osc.stop(t + r * 2 + 0.1);
       if (i === 0) {
         osc.onended = () => {
-          for (const node of voice.nodes) { if (node instanceof OscillatorNode) { try { ch.drift.disconnect(node.detune); } catch {} } node.disconnect(); }
+          for (const node of voice.nodes) { if (node instanceof AudioScheduledSourceNode) { try { ch.drift.disconnect(node.detune); } catch {} } node.disconnect(); }
         };
       }
     });
@@ -743,7 +822,9 @@ export class Graph {
     if (out.recolor) {
       // Another of the layer's sounds, never the one it has.
       const { layer, pick } = out.recolor;
-      const others = Object.keys(SOUNDS[layer]).filter((name) => name !== this.layers[layer].sound);
+      // In a colour, a layer only moves between that colour's sounds.
+      const pool = this.pools?.[layer] || Object.keys(SOUNDS[layer]).filter((name) => !SOUNDS[layer][name].sample);
+      const others = pool.filter((name) => name !== this.layers[layer].sound);
       if (others.length) {
         out.recolor.sound = others[Math.floor(pick * others.length)];
         this.layers[layer].sound = out.recolor.sound;
@@ -759,7 +840,7 @@ export class Graph {
     if (out.step % 16 === 0) {
       for (const id of HOLD_IDS) {
         if (!this.audible(id)) continue;
-        const sound = SOUNDS[id][this.layers[id].sound] || Object.values(SOUNDS[id])[0];
+        const sound = this._sound(id, this.layers[id].sound);
         this.channels[id].holdFilter.frequency.setTargetAtTime(clamp(sound.cutoff * this.spiral(id, t).bright * this._drift(id, 'bright', 0.5), 200, 9000), t, 2.5);
       }
       // The echoes drift too, a bar at a time.
@@ -875,6 +956,13 @@ export class TangerineAudio {
     this.midiOut = null;
     this.midiOnly = false;
     this.thread = null;
+    this.colour = { pools: null, space: null };
+  }
+
+  // A colour's limits on "Sounds change" ({ layer: [sounds] }) and its real space (AudioBuffer or null).
+  setColour({ pools = null, space = null } = {}) {
+    this.colour = { pools, space };
+    if (this.graph) { this.graph.pools = pools; this.graph.setSpace(space); }
   }
 
   on(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
@@ -889,6 +977,8 @@ export class TangerineAudio {
     this.graph.journal = this.journal;
     this.graph.midiOut = this.midiOut;
     this.graph.midiOnly = this.midiOnly;
+    this.graph.pools = this.colour.pools;
+    this.graph.setSpace(this.colour.space);
     this.graph.applyAll(true);
     try {
       const url = URL.createObjectURL(new Blob([CAPTURE_SOURCE], { type: 'application/javascript' }));
@@ -998,6 +1088,12 @@ export class TangerineAudio {
         this.graph.hold(id, this.graph.lastHold[id], this.ctx.currentTime + 0.05);
       }
     }
+  }
+
+  // Whole piece: the layers allowed to sound now (null: all). See Graph.setStage.
+  setStage(ids, fade) {
+    this.stage = ids;
+    if (this.graph) this.graph.setStage(ids, this.ctx.currentTime + 0.02, fade);
   }
 
   // Listen to one layer alone (even one that is switched off), or null: the mix again.
@@ -1193,13 +1289,14 @@ export function renderNotes({ seed = 1, engine = {}, layers = {}, global = {}, m
 
 // Renders without playing it: same seed and settings, from the first step.
 // minutes: a thread with its ending (seconds is then ignored); otherwise seconds.
-export async function renderOffline({ seed = 1, engine = {}, layers = {}, global = {}, seconds = 60, minutes = null, sampleRate = 48000, onProgress, names = {} } = {}) {
+export async function renderOffline({ seed = 1, engine = {}, layers = {}, global = {}, seconds = 60, minutes = null, sampleRate = 48000, onProgress, names = {}, colour = null } = {}) {
   const OfflineContext = window.OfflineAudioContext || window.webkitOfflineAudioContext;
   const settings = { ...DEFAULT_GLOBAL, ...global };
   const length = minutes ? minutes * 60 + THREAD_TAIL : seconds + 3;
   const ctx = new OfflineContext({ numberOfChannels: 2, length: Math.ceil(length * sampleRate), sampleRate });
   const layerSettings = Object.fromEntries(LAYER_IDS.map((id) => [id, { ...DEFAULT_LAYERS[id], ...(layers[id] || {}), delay: { ...DEFAULT_LAYERS[id].delay, ...(layers[id]?.delay || {}) } }]));
   const graph = new Graph(ctx, { seed, layers: layerSettings, global: settings });
+  if (colour) { graph.pools = colour.pools; graph.setSpace(colour.space); }
   const player = new TangerineEngine({ seed, ...engine, active: LAYER_IDS.filter((id) => layerSettings[id].on), drift: settings.drift, window: windowOf(settings.bpm) });
   if (minutes) player.setEnding(minutes * 60 * settings.bpm * 4 / 60);
   const journal = new Journal();
