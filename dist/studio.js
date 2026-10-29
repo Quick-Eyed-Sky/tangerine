@@ -78,6 +78,9 @@ export function initStudio({ getAudio, notify, startFromBeginning }) {
   function renderTimed() {
     const m = Number(timedSlider.value);
     $('timedMinutesValue').textContent = minutesLabel(m);
+    const seconds = (v) => (v >= 60 ? `${Math.floor(v / 60)} min${v % 60 ? ` ${v % 60} s` : ''}` : `${v} s`);
+    $('timedIntroValue').textContent = seconds(Number($('timedIntro').value));
+    $('timedOutroValue').textContent = seconds(Number($('timedOutro').value));
     const bytes = m * 60 * 44100 * 4;
     const size = bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1).replace('.', ',')} GB` : `${Math.round(bytes / 1e6)} MB`;
     $('timedSize').textContent = `About ${size} on your Mac (WAV, 44.1 kHz stereo).`;
@@ -98,9 +101,9 @@ export function initStudio({ getAudio, notify, startFromBeginning }) {
       notify(`Opened in the Finder: ${result.name}`);
     } catch (error) { notify(error.message || 'The folder could not be opened.'); }
   }));
-  timedSlider.addEventListener('input', renderTimed);
+  for (const slider of [timedSlider, $('timedIntro'), $('timedOutro')]) slider.addEventListener('input', renderTimed);
   $('timedRecord').addEventListener('click', async () => {
-    try { await startFromBeginning(recorder, Number(timedSlider.value)); }
+    try { await startFromBeginning(recorder, Number(timedSlider.value), { intro: Number($('timedIntro').value), outro: Number($('timedOutro').value) }); }
     catch (error) { notify(error.message || 'The recording could not start.'); }
     renderRecording();
   });

@@ -16,6 +16,7 @@ Dans **The colour** : Phaedra 1974, Stratosfear / Exit, Moon Safari, Fairlight /
 
 1. Dans **Keep & Record**, bloc **Record a whole piece**, choisir la durée (1 min à 2 h).
 2. Appuyer sur **Start from the beginning and record…**. Tangerine charge d'abord tous les samples de la couleur, puis la musique repart de sa première mesure, avec la même graine et les mêmes réglages.
-3. L'enregistrement s'arrête seul à la durée choisie.
+3. **Intro** (10 s par défaut) : les couches entrent une par une, dans un ordre tiré de la graine. **Outro** (20 s par défaut) : elles sortent une par une, sans baisser le volume, jusqu'à ce qu'il n'en reste qu'une, de préférence une nappe tenue.
+4. L'enregistrement s'arrête seul à la durée choisie.
 
 Les fichiers vont dans **Recordings**, à côté du lanceur : les WAV (une heure par fichier, stéréo) et `reglages.txt` (couleur, graine et réglages au départ). Ne pas modifier les réglages ni mettre en pause pendant l'enregistrement.

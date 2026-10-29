@@ -366,7 +366,20 @@ export class Graph {
   // Heard: switched on (or the one being listened to alone), and not MIDI only.
   audible(id) {
     if (this.midiOnly) return false;
+    if (this.stage && !this.stage.has(id)) return false;
     return this.solo ? this.solo === id : !!this.layers[id].on;
+  }
+
+  // A staged entry or exit (a whole piece's intro and outro): only these layers sound,
+  // or null: all of them. A layer that leaves fades with its own release, the rest stay as loud.
+  setStage(ids, t = this.ctx.currentTime, fade = 0.4) {
+    this.stage = ids ? new Set(ids) : null;
+    for (const id of LAYER_IDS) {
+      const gain = this.channels[id].level.gain;
+      if (gain.cancelAndHoldAtTime) gain.cancelAndHoldAtTime(t); else gain.cancelScheduledValues(t);
+      gain.setTargetAtTime(this.audible(id) ? this.layers[id].level : 0, t, fade);
+    }
+    this.refreshHolds(t);
   }
 
   // The slow drift of one setting of one layer: a factor around 1.
@@ -1075,6 +1088,12 @@ export class TangerineAudio {
         this.graph.hold(id, this.graph.lastHold[id], this.ctx.currentTime + 0.05);
       }
     }
+  }
+
+  // Whole piece: the layers allowed to sound now (null: all). See Graph.setStage.
+  setStage(ids, fade) {
+    this.stage = ids;
+    if (this.graph) this.graph.setStage(ids, this.ctx.currentTime + 0.02, fade);
   }
 
   // Listen to one layer alone (even one that is switched off), or null: the mix again.

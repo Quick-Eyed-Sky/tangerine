@@ -1,4 +1,5 @@
 import { initStudio } from './studio.js';
+import { hashSeed, mulberry32 } from './rng.js';
 import { TangerineAudio, Graph, renderOffline, renderNotes, MAX_RENDER_MINUTES, encodeWav, LAYER_IDS, SOUNDS, DIVISIONS, DIVISION_LABEL, DEFAULT_LAYERS, DEFAULT_GLOBAL, ENVELOPE_LIMITS, KEEP_SECONDS, ECHO_MAX } from './audio.js?v=12';
 import { LAYERS, SEQ_IDS, HOLD_IDS } from './engine.js';
 import { BANK, COLOURS, sampledKey, sampledSound, colourSound, colourPool, colourSpace, colourSamples } from './samples.js';
@@ -890,7 +891,7 @@ async function finishRecording() {
 // From the beginning: the vine is rewound to its first bar with the same seed and
 // settings, and the capture is ready before the first sound. The recording stops by
 // itself after the chosen length, and the vine rests with it.
-async function startFromBeginning(recorder, minutes) {
+async function startFromBeginning(recorder, minutes, { intro = 0, outro = 0 } = {}) {
   if (audio.recording) throw new Error('Stop the memory recording first.');
   const rest = async () => {
     if (!audio.playing) return;
@@ -908,16 +909,63 @@ async function startFromBeginning(recorder, minutes) {
   audio.setSeed(audio.seed);
   resetDisplay();
   elapsed = 0;
-  recorder.onLimit = rest;
-  await recorder.start({ audio, seed: audio.seed, beforePlay: true, limitSeconds: minutes * 60, settings: timedNote(minutes) });
+  const plan = piecePlan(minutes * 60, intro, outro);
+  recorder.onLimit = async () => { stopStaging(); await rest(); };
+  await recorder.start({ audio, seed: audio.seed, beforePlay: true, limitSeconds: minutes * 60, settings: timedNote(minutes, plan) });
+  if (plan.intro) audio.setStage([plan.order[0]]);
   await toggle();
+  stageTimer = setInterval(() => stagePiece(recorder, plan), 100);
+}
+
+// Intro and outro of a whole piece. Intro: the layers that play at the start come in one by
+// one, in an order of their own (from the seed), until all of them sound. Outro: they leave
+// one by one, without the volume going down, until one is left; it stops with the piece.
+let stageTimer = null;
+function piecePlan(total, intro, outro) {
+  const random = mulberry32(hashSeed(audio.seed, 'whole piece'));
+  const shuffle = (ids) => ids.map((id) => [random(), id]).sort((a, b) => a[0] - b[0]).map(([, id]) => id);
+  intro = Math.max(0, Math.min(intro, total / 3));
+  outro = Math.max(0, Math.min(outro, total / 3));
+  const order = shuffle(LAYER_IDS.filter((id) => settings.layers[id].on));
+  // Entries: the first layer at once, the others at uneven moments across the intro.
+  const entries = order.map((_, i) => (i === 0 ? 0 : intro * (i - 0.5 + random()) / Math.max(1, order.length - 1)));
+  entries.sort((a, b) => a - b);
+  return { total, intro, outro, order, entries, leaving: null, exits: [], random, shuffle };
+}
+function stagePiece(recorder, plan) {
+  if (!recorder.active || !audio.graph) { stopStaging(); return; }
+  const t = recorder.seconds;
+  if (plan.intro && !plan.introDone) {
+    const count = plan.entries.filter((at) => at <= t).length;
+    if (t >= plan.intro) { plan.introDone = true; audio.setStage(null); }
+    else if (count !== plan.entered) { plan.entered = count; audio.setStage(plan.order.slice(0, count)); }
+  }
+  if (plan.outro && t >= plan.total - plan.outro) {
+    if (!plan.leaving) {
+      // Those sounding now leave; a held layer (pad, drone, high strings) stays last when one sounds.
+      const sounding = plan.shuffle(LAYER_IDS.filter((id) => audio.graph.audible(id)));
+      const held = sounding.filter((id) => HOLD_IDS.includes(id));
+      const last = held.length ? held[0] : sounding[0];
+      plan.leaving = [last, ...sounding.filter((id) => id !== last)];
+      plan.exits = plan.leaving.slice(1).map((_, i, all) => plan.total - plan.outro + plan.outro * 0.85 * (i + 0.5 + 0.4 * (plan.random() - 0.5)) / all.length);
+      plan.left = -1;
+    }
+    const gone = plan.exits.filter((at) => at <= t).length;
+    if (gone !== plan.left) { plan.left = gone; audio.setStage(plan.leaving.slice(0, plan.leaving.length - gone), 1.5); }
+  }
+}
+function stopStaging() {
+  clearInterval(stageTimer);
+  stageTimer = null;
+  if (audio.stage) audio.setStage(null);
 }
 
 // The note written beside the WAV files: the settings at the start, with the seed.
-function timedNote(minutes) {
+function timedNote(minutes, plan) {
   return [
     `Tangerine II ${VERSION}`,
     `Recorded from the beginning, for ${minutes} min, then stopped by itself.`,
+    `Intro ${Math.round(plan.intro)} s: the layers come in one by one (${plan.order.join(', ')}). Outro ${Math.round(plan.outro)} s: they leave one by one until one is left.`,
     `Colour: ${COLOURS[settings.colour].label}. Seed ${audio.seed}. Same seed, colour and settings give the same vine.`,
     'Settings at the start (changes made during the recording are not in this note):',
     JSON.stringify(snapshot(), null, 2),

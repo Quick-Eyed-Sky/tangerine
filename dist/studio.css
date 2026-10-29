@@ -298,3 +298,11 @@ body.focus-active .mobile-nav { display:none; }
 .drift-wrap { position:relative; display:block; }
 .drift-tick { --thumb:15px; position:absolute; top:50%; width:2px; height:12px; margin:-6px 0 0 -1px; border-radius:1px; background:#e6f9f2; opacity:.8; pointer-events:none; left:calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--p,.5)); }
 @container studio (max-width:740px) { .drift-tick { --thumb:19px; } }
+
+/* Tangerine II: the colour and the recording keep Tangerine's warm light, to stand apart from the blue-green. */
+#colourGroup, #keepSection {
+  --panel:#1b1510; --panel-2:#211912; --line:#382a1f; --line-2:#4a382a;
+  --text:#f3e8d8; --soft:#d9c7b0; --muted:#ab9580; --dim:#7f6a57;
+  --accent:#f28a2e; --accent-light:#ffbb6b; --accent-deep:#c9581c; --blood:#ff6a4d; --cream:#f7ead2;
+  background:var(--panel); border-color:var(--line-2); color:var(--text);
+}
