@@ -31,7 +31,7 @@
   <header class="app-header">
     <a class="brand" href="./" aria-label="Tangerine II home"><span class="brand-mark" aria-hidden="true"><svg id="helix" class="helix" viewBox="0 0 40 40"></svg></span>tangerine<span class="wordmark-two">II</span></a>
     <span class="brand-note">SEQUENCES IN SLOW LIGHT</span>
-    <div class="header-end"><span class="local-label"><i></i> <span id="editionLabel">TANGERINE II</span></span><button id="hintToggle" class="header-action" type="button" aria-pressed="false">Show tips</button><button id="previewToggle" class="header-action" type="button" aria-pressed="false">Phone preview</button><button id="helpButton" class="help-button" aria-label="About Tangerine" title="About Tangerine">?</button></div>
+    <div class="header-end"><span class="local-label"><i></i> <span id="editionLabel">TANGERINE II 2.0</span></span><button id="hintToggle" class="header-action" type="button" aria-pressed="false">Show tips</button><button id="previewToggle" class="header-action" type="button" aria-pressed="false">Phone preview</button><button id="helpButton" class="help-button" aria-label="About Tangerine" title="About Tangerine">?</button></div>
   </header>
 
   <main>
@@ -39,6 +39,7 @@
 
     <section class="player-bar" aria-label="Playback and master volume"><div class="player-transport"><div class="transport-row">
           <button id="transport" class="transport" aria-pressed="false"><span class="play-circle"><svg><use href="#play"/></svg></span><span><strong id="transportText">Start the vine</strong><small id="sourceName">Sequences · one moving harmony</small></span><i id="transportDot" class="transport-dot"></i></button>
+          <button id="stopButton" class="restart-button stop-button" type="button" title="Stop: pause and go back to the first bar. A recording in progress is finished and kept." aria-label="Stop and go back to the first bar"><svg aria-hidden="true" viewBox="0 0 20 20"><rect x="5" y="5" width="10" height="10" rx="1.5" fill="currentColor"/></svg></button>
           <button id="restart" class="restart-button" type="button" title="Restart from zero: reset the timer; draw a new seed, key, mode and harmony. Tempo and layer settings stay." aria-label="Restart from zero: new seed and new harmony"><svg aria-hidden="true"><use href="#restart-icon"/></svg></button>
         </div>
         <div class="transport-caption"><span id="playStatus">Ready when you are.</span><span id="elapsed">0:00</span></div>
@@ -59,8 +60,8 @@
           <p class="renew-note" id="randomNote">Draws a key, a mode and the four settings below.</p>
           <label class="slider-label spaced" for="complexity"><span>Harmonic richness</span><output id="complexityValue">58</output></label><input id="complexity" type="range" min="0" max="100" value="58"><div class="scale-caption"><span>Open fifths</span><span>Ninths, elevenths</span></div>
           <p class="slider-hint">The colour of each chord, from bare fifths to ninths and elevenths. The key does not change.</p>
-          <label class="slider-label spaced" for="changes"><span>Key changes</span><output id="changesValue">6</output></label><input id="changes" type="range" min="0" max="12" value="6" step="1"><div class="scale-caption"><span>Stay in one key</span><span>Often</span></div>
-          <p class="slider-hint">How many times key and mode change: per ten minutes, or in the whole thread.</p>
+          <label class="slider-label spaced" for="changes"><span>Key changes</span><output id="changesValue">every 16 bars</output></label><input id="changes" type="range" min="0" max="5" value="2" step="1"><div class="scale-caption"><span>Stay in one key</span><span>At each chord</span></div>
+          <p class="slider-hint">How often key and mode change, in bars, at any tempo. A change waits for a chord change, so the fastest is one per chord (4 to 16 bars).</p>
           <label class="slider-label spaced" for="wander"><span>Distance</span><output id="wanderValue">35</output></label><input id="wander" type="range" min="0" max="100" value="35"><div class="scale-caption"><span>Next door</span><span>Far away</span></div>
           <p class="slider-hint">How far each change goes: another mode on the same notes, or a leap to a distant key.</p>
           <label class="slider-label spaced" for="pedal"><span>Held bass</span><output id="pedalValue">56</output></label><input id="pedal" type="range" min="0" max="100" value="56"><div class="scale-caption"><span>Follows the chords</span><span>Holds the home note</span></div>
@@ -70,15 +71,15 @@
           <label class="slider-label" for="evolution"><span>Evolution</span><output id="evolutionValue">100</output></label><input id="evolution" type="range" min="0" max="100" value="100"><div class="scale-caption"><span>Fixed</span><span>Restless</span></div>
           <p class="slider-hint">How often a sequence changes one detail: a note, an octave, an accent. The harmony is untouched.</p>
           <button id="newSequences" class="renew-button spaced-button" type="button"><svg><use href="#shuffle"/></svg><span>New sequences</span><span>↻</span></button>
-          <div class="tonality-fields single renew-auto"><label for="renew">New sequences by themselves<select id="renew"><option value="0">Never: only with the button</option><option value="32" selected>Every 32 bars</option><option value="64">Every 64 bars</option><option value="128">Every 128 bars</option></select></label></div>
+          <div class="tonality-fields single renew-auto"><label for="renew">New sequences by themselves<select id="renew"><option value="0">Never: only with the button</option><option value="1">Every bar</option><option value="2">Every 2 bars</option><option value="4">Every 4 bars</option><option value="8">Every 8 bars</option><option value="16">Every 16 bars</option><option value="32" selected>Every 32 bars</option><option value="64">Every 64 bars</option><option value="128">Every 128 bars</option></select></label></div>
           <p class="renew-note">The harmony stays. The patterns change, on a chord change.</p>
         </section></details><details class="control-group" id="changeGroup" open><summary><span>SLOW CHANGE</span><span id="driftReadout">WANDERING</span></summary><section class="control-section">
 
           <label class="slider-label" for="drift"><span>Slow change</span><output id="driftValue">100</output></label><input id="drift" type="range" min="0" max="100" value="100"><div class="scale-caption"><span>Settings stay put</span><span>Everything drifts</span></div>
           <p class="slider-hint">Note lengths, echoes, brightness, levels, richness, distance and held bass wander slowly around their settings, each on its own wave of a few minutes.</p>
-          <div class="tonality-fields single renew-auto"><label for="recolor">Sounds change<select id="recolor"><option value="0">Never: each layer keeps its sound</option><option value="64">Now and then: one layer, about every 64 bars</option><option value="32" selected>Often: one layer, about every 32 bars</option></select></label></div>
+          <div class="tonality-fields single renew-auto"><label for="recolor">Sounds change<select id="recolor"><option value="0">Never: each layer keeps its sound</option><option value="1">Every bar</option><option value="2">Every 2 bars</option><option value="4">Every 4 bars</option><option value="8">Every 8 bars</option><option value="16">Every 16 bars</option><option value="32" selected>Every 32 bars</option><option value="64">Every 64 bars</option><option value="128">Every 128 bars</option></select></label></div>
           <p class="slider-hint">A layer takes another of its sounds, on a chord change. Its card shows the new one.</p>
-          <div class="tonality-fields single renew-auto"><label for="rotate">Layers change<select id="rotate"><option value="0">Never: layers stay as you set them</option><option value="32" selected>Now and then: about every 32 bars</option><option value="16">Often: about every 16 bars</option></select></label></div>
+          <div class="tonality-fields single renew-auto"><label for="rotate">Layers change<select id="rotate"><option value="0">Never: layers stay as you set them</option><option value="1">Every bar</option><option value="2">Every 2 bars</option><option value="4">Every 4 bars</option><option value="8">Every 8 bars</option><option value="16">Every 16 bars</option><option value="32" selected>Every 32 bars</option><option value="64">Every 64 bars</option><option value="128">Every 128 bars</option></select></label></div>
           <p class="slider-hint">One layer rests and another comes in, on a chord change, so the same number keep playing. The bass rests too.</p>
           <p class="renew-note" id="rotateNote"></p>
         </section></details><details class="control-group" id="formGroup" open><summary><span>THE FORM</span><span id="formReadout">ENDLESS</span></summary><section class="control-section form-section">
@@ -137,14 +138,14 @@
     <p class="capture-help" id="diskHelp">No 30-minute stop. Consecutive one-hour WAV files keep long sessions manageable. Keep this recorder tab open and your Mac awake.</p>
     <p class="recording-path" id="recordingPath"></p>
     <ol id="diskFiles" class="disk-files"></ol><a id="localDownload" class="renew-button local-download" href="https://github.com/Quick-Eyed-Sky/tangerine/releases/latest" hidden>Download for continuous recording ↗</a>
-  </div>
-  <div class="capture-block recent-block">
-    <div class="recent-title"><span class="eyebrow">JUST BEFORE NOW</span><span id="heardReadout">NOTHING YET</span></div>
-    <h3>Recover a recent passage</h3>
-    <p>The last 20 minutes are remembered temporarily. This does not start a recording.</p>
-    <div class="keep-row"><select id="keepLength" aria-label="Passage to recover"><option value="30">Last 30 seconds</option><option value="60">Last minute</option><option value="120" selected>Last 2 minutes</option><option value="300">Last 5 minutes</option><option value="600">Last 10 minutes</option><option value="1200">Last 20 minutes</option><option value="all">All available (up to 20 min)</option></select><button id="keepButton" class="keep-button" type="button"><svg aria-hidden="true"><use href="#download"/></svg>Recover</button></div>
-    <p class="control-hint" id="recordHint">Creates download links below: WAV audio, MIDI notes, ABC score and lead sheet. Download a file to keep it after closing the page.</p>
-    <ol id="takes" class="takes"></ol>
+    <div class="recent-block">
+        <div class="recent-title"><span class="eyebrow">JUST BEFORE NOW</span><span id="heardReadout">NOTHING YET</span></div>
+        <h4>Recover a recent passage</h4>
+        <p>The last 20 minutes are remembered temporarily. This does not start a recording.</p>
+        <div class="keep-row"><select id="keepLength" aria-label="Passage to recover"><option value="30">Last 30 seconds</option><option value="60">Last minute</option><option value="120" selected>Last 2 minutes</option><option value="300">Last 5 minutes</option><option value="600">Last 10 minutes</option><option value="1200">Last 20 minutes</option><option value="all">All available (up to 20 min)</option></select><button id="keepButton" class="keep-button" type="button"><svg aria-hidden="true"><use href="#download"/></svg>Recover</button></div>
+        <p class="control-hint" id="recordHint">Creates download links below: WAV audio, MIDI notes, ABC score and lead sheet. Download a file to keep it after closing the page.</p>
+        <ol id="takes" class="takes"></ol>
+      </div>
   </div>
 
 </section><details class="control-group setup-panel" open><summary><span>SETUP &amp; MIDI</span></summary><section class="control-section setup-actions"><button id="saveSetup" class="renew-button" type="button"><svg aria-hidden="true"><use href="#download"/></svg>Save setup</button><button id="loadSetup" class="renew-button" type="button"><svg aria-hidden="true"><use href="#upload"/></svg>Load setup</button><input id="setupFile" type="file" accept="application/json,.json" hidden></section><section class="control-section midi-section">
@@ -154,7 +155,7 @@
           <p class="control-hint">Channels: bass 1 · arpeggio 2 · motif 3 · pad 4 · bells 5 · low strings 6 · counter sequence 7 · long lead 8 · drone 9 · high strings 11 · slow melody 12 · echo pulse 13.</p>
         </section></details></aside>
     </div>
-    <footer class="app-footer"><span>TANGERINE II <span class="slash">/</span> REAL INSTRUMENTS <span class="app-version">v2.0 · SEED <span id="seedValue"></span></span></span><div><a class="previous-version" href="./versions/v1.2.0/">Previous version · 1.2 ↗</a></div><span class="shortcut-note"><kbd>space</kbd> to play / pause</span></footer>
+    <footer class="app-footer"><span>TANGERINE II <span class="slash">/</span> REAL INSTRUMENTS <span class="app-version">v2.0 · Made with Claude · SEED <span id="seedValue"></span></span></span><div><a class="previous-version" href="./versions/v1.2.0/">Previous version · 1.2 ↗</a></div><span class="shortcut-note"><kbd>space</kbd> to play / pause</span></footer>
   </main>
 
   </div>

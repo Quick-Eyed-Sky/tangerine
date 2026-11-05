@@ -58,12 +58,17 @@ const COLORS = {
   cello: '#3f9c8a', seq2: '#7fd08a', lead: '#8ab8ee', drone: '#2f6f86', air: '#bfe8f0',
   theme: '#a6d6c4', pulse: '#5cc0d0',
 };
-const RENEW = [0, 32, 64, 128];
+// Bars between repeats: a sequence's renewal, a layer's new sound, a layer's rest. 0: never.
+const BAR_STEPS = [0, 1, 2, 4, 8, 16, 32, 64, 128];
+const RENEW = BAR_STEPS;
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-const RECOLOR = [0, 64, 32];
-const ROTATE = [0, 32, 16];
-const DEFAULT_ENGINE = { key: { tonic: 6, mode: 'lydian' }, complexity: 0.58, wander: 0.35, changes: 6, pedal: 0.56, evolution: 1, renew: 32, recolor: 32, rotate: 32, lengths: { bass: 16, arp: 12, motif: 7, seq2: 10, pulse: 5 } };
+const RECOLOR = BAR_STEPS;
+const ROTATE = BAR_STEPS;
+// Bars between key changes: 0 never. A key change waits for a chord change, and a chord lasts 4 to 16 bars,
+// so two bars is already about one change per chord: the rate cannot go faster than the chords.
+const KEY_EVERY = [0, 32, 16, 8, 4, 2];
+const DEFAULT_ENGINE = { key: { tonic: 6, mode: 'lydian' }, complexity: 0.58, wander: 0.35, changes: 6, every: 16, pedal: 0.56, evolution: 1, renew: 32, recolor: 32, rotate: 32, lengths: { bass: 16, arp: 12, motif: 7, seq2: 10, pulse: 5 } };
 const freshSettings = () => ({
   seed: (Math.random() * 4294967296) >>> 0,
   salt: 0,
@@ -96,6 +101,8 @@ function readSetup(value) {
     for (const l of Object.values(v.layers)) if (l?.delay && Number.isFinite(l.delay.feedback)) l.delay.feedback = Math.min(1, l.delay.feedback / ECHO_MAX);
   }
   if (v.version < 3) e.renew ||= DEFAULT_ENGINE.renew;
+  // Key changes were a count per ten minutes; now they are bars between changes (the same rate at this tempo).
+  if (e.every === undefined) e.every = e.changes > 0 ? nearestKeyEvery(((Number(g.bpm) || DEFAULT_GLOBAL.bpm) * 2.5) / e.changes) : 0;
   e.renew ??= DEFAULT_ENGINE.renew;
   e.recolor ??= DEFAULT_ENGINE.recolor;
   e.rotate ??= DEFAULT_ENGINE.rotate;
@@ -104,7 +111,7 @@ function readSetup(value) {
   v.layers = Object.fromEntries(LAYER_IDS.map((id) => [id, v.layers[id] ? { ...v.layers[id] } : JSON.parse(JSON.stringify(DEFAULT_LAYERS[id]))]));
   if (!e.key || !Number.isInteger(e.key.tonic) || e.key.tonic < 0 || e.key.tonic > 11 || !MODES[e.key.mode]) return null;
   if (!['complexity', 'wander', 'pedal', 'evolution'].every((n) => unitOk(e[n]))) return null;
-  if (!Number.isInteger(e.changes) || e.changes < 0 || e.changes > 12 || !RENEW.includes(e.renew) || !RECOLOR.includes(e.recolor) || !ROTATE.includes(e.rotate)) return null;
+  if (!Number.isInteger(e.changes) || e.changes < 0 || e.changes > 12 || !KEY_EVERY.includes(e.every) || !RENEW.includes(e.renew) || !RECOLOR.includes(e.recolor) || !ROTATE.includes(e.rotate)) return null;
   if (!LAYERS.filter((l) => l.kind === 'seq').every((l) => l.lengths.includes(e.lengths[l.id]))) return null;
   if (!(v.global.bpm >= 6 && v.global.bpm <= 140) || !['volume', 'wet', 'space', 'motion', 'drift'].every((n) => unitOk(v.global[n]))) return null;
   if (!Number.isInteger(v.seed) || v.seed < 0 || v.seed > 4294967295) return null;
@@ -149,6 +156,20 @@ const time = (seconds) => { const s = Math.max(0, Math.floor(seconds)); return `
 const paintRange = (input) => input.style.setProperty('--range', `${100 * (input.value - input.min) / (input.max - input.min)}%`);
 const gcd = (a, b) => (b ? gcd(b, a % b) : a);
 const lcm = (a, b) => a * b / gcd(a, b);
+// The value nearest to bars in KEY_EVERY, on a log scale (for a setting saved in the older units).
+const nearestKeyEvery = (bars) => KEY_EVERY.filter(Boolean).reduce((best, b) => (Math.abs(Math.log2(b / bars)) < Math.abs(Math.log2(best / bars)) ? b : best));
+// Key changes read as bars, with the seconds one bar-step takes at this tempo.
+function keyEveryLabel(bars) {
+  if (!bars) return 'never';
+  const label = bars === 2 ? 'every 2 bars' : `every ${bars} bars`;
+  const seconds = bars * 4 * 60 / settings.global.bpm;
+  return `${label} <small>≈ ${seconds >= 10 ? Math.round(seconds) : seconds.toFixed(1)} s</small>`;
+}
+// Minutes and seconds: the length of a count of sixteenth-note steps at this tempo.
+const stepsAsTime = (steps) => {
+  const s = Math.round(steps * 60 / settings.global.bpm / 4);
+  return `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, '0')} s`;
+};
 
 // ---------------------------------------------------------------- global controls
 
@@ -156,7 +177,7 @@ const sliders = [
   { id: 'bpm', get: () => settings.global.bpm, set: (v) => { settings.global.bpm = v; audio.setGlobal({ bpm: v }); }, show: (v) => `${v} <small>BPM</small>` },
   { id: 'complexity', get: () => Math.round(settings.engine.complexity * 100), set: (v) => { settings.engine.complexity = v / 100; audio.setEngine({ complexity: v / 100 }); } },
   { id: 'wander', get: () => Math.round(settings.engine.wander * 100), set: (v) => { settings.engine.wander = v / 100; audio.setEngine({ wander: v / 100 }); } },
-  { id: 'changes', get: () => settings.engine.changes, set: (v) => { settings.engine.changes = v; audio.setEngine({ changes: v }); }, show: (v) => `${v} <small>${settings.form.thread ? 'IN THE THREAD' : 'PER 10 MIN'}</small>` },
+  { id: 'changes', get: () => KEY_EVERY.indexOf(settings.engine.every), set: (v) => { settings.engine.every = KEY_EVERY[v]; settings.engine.changes = v ? 1 : 0; audio.setEngine({ every: KEY_EVERY[v], changes: settings.engine.changes }); }, show: (v) => keyEveryLabel(KEY_EVERY[v]) },
   { id: 'drift', get: () => Math.round(settings.global.drift * 100), set: (v) => { settings.global.drift = v / 100; audio.setGlobal({ drift: v / 100 }); } },
   { id: 'pedal', get: () => Math.round(settings.engine.pedal * 100), set: (v) => { settings.engine.pedal = v / 100; audio.setEngine({ pedal: v / 100 }); } },
   { id: 'evolution', get: () => Math.round(settings.engine.evolution * 100), set: (v) => { settings.engine.evolution = v / 100; audio.setEngine({ evolution: v / 100 }); } },
@@ -197,7 +218,7 @@ function renderControls() {
   const l = settings.engine.lengths;
   const meet = lcm(lcm(l.bass, l.arp), l.motif * 2);
   const all = [[l.seq2 * 3, 'seq2'], [l.pulse * 4, 'pulse']].reduce((m, [n, id]) => (settings.layers[id].on ? lcm(m, n) : m), meet);
-  $('cycleReadout').textContent = `MEET EVERY ${all}`;
+  $('cycleReadout').textContent = `MEET EVERY ${all} · ${stepsAsTime(all)}`;
   $('renew').value = String(settings.engine.renew);
   $('recolor').value = String(settings.engine.recolor);
   $('rotate').value = String(settings.engine.rotate);
@@ -695,6 +716,81 @@ async function restart() {
   persist();
 }
 $('restart').addEventListener('click', (e) => { e.currentTarget.blur(); restart(); });
+
+// Stop: the sound stops and the vine goes back to its first bar, with the same seed and settings.
+// A recording to this computer in progress is finished and kept (its files stay in Recordings).
+async function stopVine() {
+  const recorder = window.tangerine.diskRecorder;
+  if (recorder?.active) await recorder.stop();
+  stopStaging();
+  if (audio.playing) await audio.pause();
+  if (audio.graph) audio.graph.releaseAll(audio.currentTime);
+  audio.setSeed(settings.seed);
+  resetDisplay();
+  elapsed = 0;
+  startedAt = null;
+  renderTransport();
+  notify('Stopped. Back to the first bar.');
+}
+$('stopButton').addEventListener('click', (e) => { e.currentTarget.blur(); stopVine(); });
+
+// The (i) buttons: a short explanation of a setting, opened by a click, in the same place each time.
+const INFO = {
+  piece: 'Restarts the vine from its first bar, with the same seed and settings, and records from the first sound until the chosen length. Then it stops by itself.',
+  intro: 'At the start, the layers come in one by one, in an order drawn from the seed, until all of them sound. The volume is not lowered: a layer simply joins. Zero: they all start at once.',
+  outro: 'At the end, the layers leave one by one, at the same volume, until one is left (a held layer when there is one), and the piece stops. Zero: it stops at once.',
+  changes: 'How often the key and mode change, in bars, so the rate is the same at any tempo. A change happens on a chord change, and a chord lasts 4 to 16 bars, so the fastest setting is one change per chord. The changes move through shared notes, and now and then to a new key. Never keeps the key.',
+  meet: 'Each sequence has its own length (16, 12, 7, 10 and 5 steps) and they drift apart. This is the number of sixteenth-note steps after which all of them line up again at their first step, and the time it takes at this tempo.',
+  evolution: 'How often one sequence changes one detail (a step, a note, an octave, an accent). At 100 it is about every 7 passes of that sequence; at 0, about every 64 passes. The harmony is never changed.',
+  renew: 'Brand new sequences by themselves, every so many bars. The harmony stays; the patterns change on a chord change. Never: only with the New sequences button.',
+  drift: 'Note lengths, echoes, brightness, levels, richness, distance and held bass wander slowly around the settings you chose, each on its own wave of a few minutes. At 0, nothing moves.',
+  recolor: 'Every so many bars, one layer takes another of its sounds, on a chord change, and its card shows the new one. In a colour, only that colour\'s sounds are used.',
+  rotate: 'Every so many bars, one layer rests and another comes in, on a chord change, so the same number of layers keep playing. The bass rests too.',
+  form: 'Endless: the vine never ends. A thread of a chosen length: it plays from its first bar, comes home to the home key during its last 24 bars, the layers leave one by one, and the last chord fades. Make the thread as files: it is rendered offline.',
+  colour: 'A colour decides which instrument each layer plays. The samples are read from the SAMPLES folder; a colour that is missing some of them plays the synthesized sound instead. Sounds change moves a layer between the sounds of the colour.',
+  keep: 'Recording to this computer writes WAV files as the vine plays, until you stop. Recover a recent passage keeps the last minutes in memory, so you can save a moment you have just heard.',
+};
+function addInfo(anchor, key, host) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'info-dot';
+  button.textContent = 'i';
+  button.setAttribute('aria-label', 'About this setting');
+  button.setAttribute('aria-expanded', 'false');
+  const note = document.createElement('p');
+  note.className = 'info-note';
+  note.hidden = true;
+  note.textContent = INFO[key];
+  anchor.append(button);
+  host.after(note);
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    note.hidden = !note.hidden;
+    button.setAttribute('aria-expanded', String(!note.hidden));
+  });
+}
+const INFO_SPOTS = [
+  ['#timedBlock h3', 'piece', '#timedBlock h3'],
+  ['#timedBlock label[for="timedIntro"] > span', 'intro', '#timedIntro'],
+  ['#timedBlock label[for="timedOutro"] > span', 'outro', '#timedOutro'],
+  ['label[for="changes"] > span', 'changes', '#changes'],
+  ['#cycleReadout', 'meet', '#sequencesGroup .control-section'],
+  ['label[for="evolution"] > span', 'evolution', '#evolution'],
+  ['label[for="renew"]', 'renew', '#renew'],
+  ['label[for="drift"] > span', 'drift', '#drift'],
+  ['label[for="recolor"]', 'recolor', '#recolor'],
+  ['label[for="rotate"]', 'rotate', '#rotate'],
+  ['#formGroup > summary > span:first-child', 'form', '#formGroup .control-section'],
+  ['#colourGroup > summary > span:first-child', 'colour', '#colourGroup .control-section'],
+  ['#keepSection h2', 'keep', '#keepSection h2'],
+];
+for (const [selector, key, host] of INFO_SPOTS) {
+  const anchor = document.querySelector(selector);
+  const hostEl = document.querySelector(host);
+  if (anchor && hostEl) addInfo(anchor, key, hostEl);
+}
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape') document.querySelectorAll('.info-note:not([hidden])').forEach((note) => { note.hidden = true; }); });
 
 // The vine, full screen (Esc leaves it; a double click too).
 const vineFrame = $('vineFrame');

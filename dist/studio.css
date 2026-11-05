@@ -299,10 +299,23 @@ body.focus-active .mobile-nav { display:none; }
 .drift-tick { --thumb:15px; position:absolute; top:50%; width:2px; height:12px; margin:-6px 0 0 -1px; border-radius:1px; background:#e6f9f2; opacity:.8; pointer-events:none; left:calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--p,.5)); }
 @container studio (max-width:740px) { .drift-tick { --thumb:19px; } }
 
-/* Tangerine II: the colour and the recording keep Tangerine's warm light, to stand apart from the blue-green. */
+/* Tangerine II: the colour and the recording use a light sand, against the blue-green. */
 #colourGroup, #keepSection {
-  --panel:#1b1510; --panel-2:#211912; --line:#382a1f; --line-2:#4a382a;
-  --text:#f3e8d8; --soft:#d9c7b0; --muted:#ab9580; --dim:#7f6a57;
-  --accent:#f28a2e; --accent-light:#ffbb6b; --accent-deep:#c9581c; --blood:#ff6a4d; --cream:#f7ead2;
+  --panel:#13232a; --panel-2:#172a31; --line:#2a4046; --line-2:#37535a;
+  --text:#eef4ef; --soft:#c9d8d2; --muted:#93aaa4; --dim:#6a837e;
+  --accent:#e6d08a; --accent-light:#f5e9bd; --accent-deep:#b89c55; --blood:#f0d9a0; --cream:#f6efd6;
   background:var(--panel); border-color:var(--line-2); color:var(--text);
 }
+#colourGroup summary span:last-child, #keepSection .eyebrow { color:var(--accent-light); }
+
+.stop-button svg { width:16px; height:16px; }
+.stop-button:hover { color:var(--accent-light); }
+
+/* (i): an explanation, as in Draw Things: a small circle, then a note that opens under the setting. */
+.info-dot { display:inline-grid; place-items:center; width:17px; height:17px; margin-left:6px; padding:0; border-radius:50%; border:1px solid var(--dim); background:transparent; color:var(--muted); font:italic 11px var(--serif); line-height:1; cursor:pointer; vertical-align:middle; }
+.info-dot:hover, .info-dot[aria-expanded="true"] { color:var(--accent-light); border-color:var(--accent); }
+.info-note { font-family:var(--sans); font-size:12px; line-height:1.5; color:var(--soft); background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:9px 11px; margin:6px 0 8px; }
+.info-note[hidden] { display:none; }
+
+.recent-block { margin-top:18px; padding-top:14px; border-top:1px solid var(--line); }
+.recent-block h4 { font:400 15px var(--sans); margin:4px 0 6px; color:var(--text); }

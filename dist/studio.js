@@ -175,7 +175,7 @@ export function initStudio({ getAudio, notify, startFromBeginning }) {
     $('recordingPath').hidden = !available;
     $('diskFiles').hidden = !available;
     $('localDownload').hidden = available;
-    $('editionLabel').textContent = available ? 'TANGERINE II · LOCAL' : 'TANGERINE II · BROWSER';
+    $('editionLabel').textContent = available ? 'TANGERINE II 2.0 · LOCAL' : 'TANGERINE II 2.0 · BROWSER';
     $('diskTitle').textContent = available ? 'Record to this computer' : 'Keep a long session';
     $('diskIntro').textContent = available
       ? 'Everything from Record until Stop. Saved as WAV directly in the local Recordings folder.'

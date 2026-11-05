@@ -1129,7 +1129,7 @@ export class TangerineAudio {
     const options = this.engineOptions;
     const engine = this.engine;
     const shared = {};
-    for (const name of ['complexity', 'wander', 'pedal', 'evolution', 'changes', 'renew', 'recolor', 'rotate']) if (patch[name] !== undefined) shared[name] = options[name] = patch[name];
+    for (const name of ['complexity', 'wander', 'pedal', 'evolution', 'changes', 'every', 'renew', 'recolor', 'rotate']) if (patch[name] !== undefined) shared[name] = options[name] = patch[name];
     engine.configure(shared);
     if (patch.lengths) {
       options.lengths = { ...(options.lengths || {}), ...patch.lengths };

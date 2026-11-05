@@ -109,6 +109,15 @@ test('with Key changes at zero the vine never leaves home', () => {
   for (const out of outs) if (out.harmony) assert.deepEqual(out.harmony.key, { tonic: 9, mode: 'aeolian' });
 });
 
+test('key changes in bars: one every so many bars, whatever the tempo, and never inside a chord', () => {
+  const count = (outs) => outs.filter((o) => o.harmony?.modulation).length;
+  const bars = 40;
+  const steps = bars * 16;
+  assert.equal(count(run({ seed: 61, every: 0 }, steps).outs), 0, 'never');
+  const every4 = count(run({ seed: 61, every: 4 }, steps).outs);
+  assert.ok(every4 >= 1 && every4 <= 10, `${every4} changes in ${bars} bars, every 4`);
+});
+
 test('travelTo reaches the chosen key within a few bars', () => {
   const engine = new TangerineEngine({ seed: 5, wander: 0 });
   for (let i = 0; i < 100; i++) engine.step();

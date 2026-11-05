@@ -1,12 +1,20 @@
 # Tangerine II — guide local
 
-Tangerine II joue la liane de Tangerine avec de vrais instruments échantillonnés (Mellotron, Fairlight, Moog, Prophet, Jupiter, Oberheim, Juno), choisis par **couleur**. Elle reprend aussi l'enregistrement d'une pièce entière de Tangerine Slides.
+Tangerine II 2.0 joue la liane de Tangerine avec de vrais instruments échantillonnés (Mellotron, Fairlight, Moog, Prophet, Jupiter, Oberheim, Juno), choisis par **couleur**. Elle reprend aussi l'enregistrement d'une pièce entière de Tangerine Slides.
 
 ## Lancer
 
 Double-cliquer sur **Tangerine II.command**. Le lanceur utilise le port 4460 : il ne se mélange pas avec Tangerine (4350) ni Tangerine Slides (4450). Garder la fenêtre Terminal ouverte.
 
 Les samples sont lus dans le dossier **SAMPLES** à côté du dossier Tangerine (voir `samples/LISEZ-MOI.md`).
+
+## Arrêter
+
+**Stop** (le carré à côté du play) coupe le son et ramène la liane à sa première mesure, avec la même graine. Un enregistrement en cours est terminé et gardé dans Recordings.
+
+## Tonalités
+
+**Key changes** se règle en mesures entre deux changements, pour que le rythme ne dépende pas du tempo. Un changement attend un changement d'accord, et un accord dure 4 à 16 mesures : le plus rapide est donc un changement par accord.
 
 ## Choisir une couleur
 
