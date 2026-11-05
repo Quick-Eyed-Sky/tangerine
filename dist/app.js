@@ -197,10 +197,6 @@ for (const slider of sliders) {
 function syncThreadLength() {
   const minimum = 48 / settings.global.bpm;
   const allowed = THREAD_MINUTES.filter((n) => n >= minimum);
-  if (!allowed.includes(settings.form.minutes)) settings.form.minutes = allowed[0];
-  for (const option of $('threadMinutes').options) option.disabled = Number(option.value) < minimum;
-  $('threadMinutes').value = String(settings.form.minutes);
-  $('formReadout').textContent = settings.form.thread ? `${settings.form.minutes} MIN THREAD` : 'ENDLESS';
   $('slowTempoHint').hidden = settings.global.bpm >= 16;
   $('slowTempoHint').textContent = `Very slow tempo: a timed thread needs at least twelve bars (${Math.ceil(minimum * 10) / 10} minutes at this tempo). Shorter lengths are unavailable. Echo delay keeps its existing 3.9-second maximum.`;
 }
@@ -660,16 +656,6 @@ function renderTransport() {
         : finished ? 'The thread is complete.' : elapsed > 0 ? 'Paused. The vine will wait.' : 'Ready when you are.';
   $('recordPassageButton').setAttribute('aria-pressed', String(!!audio.recording));
   $('memoryRecordText').textContent = audio.recording ? 'Stop and keep' : 'Record a passage';
-  $('formEndless').setAttribute('aria-checked', String(!settings.form.thread));
-  $('formThread').setAttribute('aria-checked', String(settings.form.thread));
-  $('threadMinutes').value = String(settings.form.minutes);
-  $('formReadout').textContent = settings.form.thread ? `${settings.form.minutes} MIN THREAD` : 'ENDLESS';
-  $('threadBar').hidden = !settings.form.thread;
-  const long = settings.form.minutes > MAX_RENDER_MINUTES;
-  $('renderText').textContent = rendering ? $('renderText').textContent : long ? 'Make the thread as notes (MIDI, ABC)' : 'Make the thread as files';
-  $('formHint').textContent = settings.form.thread
-    ? `Plays from its beginning. Twenty-four bars before the end it heads home; the last eight bars hold the home chord while the layers leave.${long ? ' Longer than 20 minutes: at the end, the last 20 minutes are kept as sound; the whole thread can be made as notes.' : ''}`
-    : 'Like Loopra: it never ends. Or a thread: it comes home, the layers leave one by one, and the last chord fades.';
   renderControls();
 }
 
@@ -721,7 +707,9 @@ $('restart').addEventListener('click', (e) => { e.currentTarget.blur(); restart(
 // A recording to this computer in progress is finished and kept (its files stay in Recordings).
 async function stopVine() {
   const recorder = window.tangerine.diskRecorder;
+  tracksRunning = false;
   if (recorder?.active) await recorder.stop();
+  pieceStop?.();
   stopStaging();
   if (audio.playing) await audio.pause();
   if (audio.graph) audio.graph.releaseAll(audio.currentTime);
@@ -855,79 +843,8 @@ function resetDisplay() {
   renderTrail();
 }
 
-// ---------------------------------------------------------------- the form
-
-function setForm(thread) {
-  settings.form.thread = thread;
-  if (!thread) audio.startThread(null);
-  else if (audio.playing) {
-    // A thread starts from its beginning: same seed, same settings.
-    audio.startThread(settings.form.minutes);
-    resetDisplay();
-    elapsed = 0;
-    startedAt = performance.now();
-    notify(`A thread of ${settings.form.minutes} minutes begins with the next note.`);
-  }
-  renderTransport();
-  persist();
-}
-$('formEndless').addEventListener('click', () => setForm(false));
-$('formThread').addEventListener('click', () => setForm(true));
-$('threadMinutes').addEventListener('change', (e) => {
-  settings.form.minutes = Number(e.target.value);
-  if (settings.form.thread && audio.thread) {
-    // Same thread, new length: the ending moves, the beginning stays.
-    audio.engine.setEnding(settings.form.minutes * 60 * settings.global.bpm * 4 / 60);
-    audio.thread.minutes = settings.form.minutes;
-  }
-  renderTransport();
-  persist();
-});
-
-let rendering = false;
 const RECORD_LIMIT = 30 * 60;
 let stopping = false;
-$('renderThread').addEventListener('click', async () => {
-  if (rendering) return;
-  rendering = true;
-  $('renderThread').disabled = true;
-  const minutes = settings.form.minutes;
-  const began = new Date();
-  try {
-    if (audio.playing) { await audio.pause(); elapsed += (performance.now() - startedAt) / 1000; startedAt = null; renderTransport(); }
-    const subtitle = `seed ${settings.seed} · ${minutes} min thread`;
-    if (minutes > MAX_RENDER_MINUTES) {
-      // Too long to hold as sound: the notes of the whole thread, in a moment.
-      const result = renderNotes({
-        seed: settings.seed, minutes,
-        engine: { ...settings.engine, key: { ...settings.engine.key }, salt: settings.salt },
-        layers: settings.layers, global: settings.global,
-        names: { title: 'Tangerine', subtitle },
-      });
-      addTake({ ...result, wav: null, began }, `thread${minutes}min_notes`, `Thread ${minutes} min · notes`);
-      notify('The whole thread as notes: MIDI and ABC, under Keep. Sound is made for threads up to 20 minutes.');
-      throw null;
-    }
-    notify(`Making a thread of ${minutes} minutes, faster than it plays. Keep this tab in front.`);
-    const result = await renderOffline({
-      seed: settings.seed, minutes,
-      engine: { ...settings.engine, key: { ...settings.engine.key }, salt: settings.salt },
-      layers: settings.layers, global: settings.global,
-      names: { title: 'Tangerine', subtitle },
-      colour: audio.colour,
-      onProgress: (x) => { $('renderText').textContent = `Making the thread… ${Math.round(100 * x)} %`; },
-    });
-    const wav = encodeWav([result.buffer.getChannelData(0), result.buffer.getChannelData(1)], result.buffer.sampleRate);
-    addTake({ wav, midi: result.midi, abc: result.abc, lead: result.lead, seconds: result.buffer.duration, began }, `thread${minutes}min`, `Thread ${minutes} min`);
-    notify('The thread is ready: WAV, MIDI and ABC, under Keep.');
-  } catch (error) {
-    if (error) notify(error.message || 'The thread could not be made.');
-  }
-  $('renderThread').disabled = false;
-  rendering = false;
-  renderTransport();
-});
-
 // ---------------------------------------------------------------- keeping passages
 
 const takes = [];
@@ -984,33 +901,86 @@ async function finishRecording() {
   notify('Take kept: WAV, MIDI and ABC, just below.');
 }
 
-// From the beginning: the vine is rewound to its first bar with the same seed and
-// settings, and the capture is ready before the first sound. The recording stops by
-// itself after the chosen length, and the vine rests with it.
-async function startFromBeginning(recorder, minutes, { intro = 0, outro = 0 } = {}) {
+// Whole pieces: tracks of the chosen length, recorded one after another. Each track starts from its
+// first bar. Between two tracks the vine is rested and rerolled: a new seed, key and mode, and unless
+// kept, a new tempo and colour. Each track is a folder of its own, with its settings beside the WAV.
+let tracksRunning = false;
+let pieceStop = null;
+async function recordTracks(recorder, minutes, { intro = 0, outro = 0, tracks = 1, keepTempo = true, keepColour = true } = {}) {
   if (audio.recording) throw new Error('Stop the memory recording first.');
-  const rest = async () => {
-    if (!audio.playing) return;
+  await audio._ensure();
+  await banked;
+  tracksRunning = true;
+  try {
+    for (let track = 1; track <= tracks && tracksRunning; track++) {
+      if (track > 1) await rerollTrack({ keepTempo, keepColour });
+      await recordTrack(recorder, minutes, { intro, outro, track, tracks });
+    }
+  } finally {
+    tracksRunning = false;
+  }
+}
+
+// One track, from its first bar, until its length is reached (or the user stops).
+async function recordTrack(recorder, minutes, { intro, outro, track, tracks }) {
+  if (audio.playing) {
     await audio.pause();
     if (startedAt) elapsed += (performance.now() - startedAt) / 1000;
     startedAt = null;
     renderTransport();
-  };
-  await audio._ensure();
-  await rest();
-  // A whole piece starts with its real instruments: every sample of the colour is decoded first.
-  await banked;
+  }
   await applyColourLimits();
   if (audio.graph) audio.graph.releaseAll(audio.currentTime);
-  audio.setSeed(audio.seed);
+  audio.setSeed(settings.seed);
   resetDisplay();
   elapsed = 0;
   const plan = piecePlan(minutes * 60, intro, outro);
-  recorder.onLimit = async () => { stopStaging(); await rest(); };
-  await recorder.start({ audio, seed: audio.seed, beforePlay: true, limitSeconds: minutes * 60, settings: timedNote(minutes, plan) });
+  const ended = new Promise((resolve) => { pieceStop = resolve; recorder.onLimit = resolve; });
+  await recorder.start({ audio, seed: audio.seed, beforePlay: true, limitSeconds: minutes * 60, settings: timedNote(minutes, plan, track, tracks) });
   if (plan.intro) audio.setStage([plan.order[0]]);
   await toggle();
   stageTimer = setInterval(() => stagePiece(recorder, plan), 100);
+  await ended;
+  pieceStop = null;
+  recorder.onLimit = null;
+  stopStaging();
+  if (audio.playing) {
+    await audio.pause();
+    startedAt = null;
+    renderTransport();
+  }
+}
+
+// A new track: a new seed and harmony (the Random button's draw), then a tempo and a colour unless kept.
+async function rerollTrack({ keepTempo, keepColour }) {
+  const key = drawHarmony();
+  settings.engine.key = key;
+  settings.seed = (Math.random() * 4294967296) >>> 0;
+  settings.salt = 0;
+  audio.setEngine({ key, salt: 0 });
+  if (!keepTempo) {
+    settings.global.bpm = 50 + Math.floor(Math.random() * 41);
+    audio.setGlobal({ bpm: settings.global.bpm });
+  }
+  if (!keepColour) {
+    const names = Object.keys(COLOURS).filter((name) => name !== 'synth');
+    applyColour(names[Math.floor(Math.random() * names.length)]);
+  }
+  renderKeyReadout();
+  renderControls();
+  persist();
+}
+
+// The note written beside each track's WAV: its settings at the start, with the seed.
+function timedNote(minutes, plan, track, tracks) {
+  return [
+    `Tangerine II ${VERSION}`,
+    `Track ${track} of ${tracks}. Recorded from the beginning, for ${minutes} min, then stopped by itself.`,
+    `Intro ${Math.round(plan.intro)} s: the layers come in one by one (${plan.order.join(', ')}). Outro ${Math.round(plan.outro)} s: they leave one by one until one is left.`,
+    `Colour: ${COLOURS[settings.colour].label}. Seed ${audio.seed}. Same seed, colour and settings give the same track.`,
+    'Settings at the start (changes made during the recording are not in this note):',
+    JSON.stringify(snapshot(), null, 2),
+  ].join('\n');
 }
 
 // Intro and outro of a whole piece. Intro: the layers that play at the start come in one by
@@ -1056,17 +1026,6 @@ function stopStaging() {
   if (audio.stage) audio.setStage(null);
 }
 
-// The note written beside the WAV files: the settings at the start, with the seed.
-function timedNote(minutes, plan) {
-  return [
-    `Tangerine II ${VERSION}`,
-    `Recorded from the beginning, for ${minutes} min, then stopped by itself.`,
-    `Intro ${Math.round(plan.intro)} s: the layers come in one by one (${plan.order.join(', ')}). Outro ${Math.round(plan.outro)} s: they leave one by one until one is left.`,
-    `Colour: ${COLOURS[settings.colour].label}. Seed ${audio.seed}. Same seed, colour and settings give the same vine.`,
-    'Settings at the start (changes made during the recording are not in this note):',
-    JSON.stringify(snapshot(), null, 2),
-  ].join('\n');
-}
 
 $('recordPassageButton').addEventListener('click', async () => {
   try {
@@ -1183,10 +1142,6 @@ $('aboutDone').addEventListener('click', () => $('about').close());
 function frame() {
   const seconds = elapsed + (startedAt ? (performance.now() - startedAt) / 1000 : 0);
   $('elapsed').textContent = time(seconds);
-  if (settings.form.thread) {
-    const p = audio.threadProgress;
-    $('threadFill').style.width = p ? `${(100 * Math.max(0, currentStep()) / p.total).toFixed(2)}%` : '0%';
-  }
   const heard = audio.heardSeconds;
   $('heardReadout').textContent = heard < 1 ? 'NOTHING YET' : heard >= KEEP_SECONDS - 1 ? 'LAST 20 MIN' : `${time(heard)} HEARD`;
   if (audio.recording && audio.recordingSeconds >= RECORD_LIMIT && !stopping) {
@@ -1301,5 +1256,5 @@ requestAnimationFrame(frame);
 window.tangerine = { get audio() { return audio; }, get settings() { return settings; } };
 
 setInterval(renderDrift, 400);
-const studio = initStudio({ getAudio: () => audio, notify, startFromBeginning });
+const studio = initStudio({ getAudio: () => audio, notify, recordTracks });
 window.tangerine.diskRecorder = studio.recorder;

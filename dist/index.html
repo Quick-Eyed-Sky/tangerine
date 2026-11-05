@@ -82,12 +82,11 @@
           <div class="tonality-fields single renew-auto"><label for="rotate">Layers change<select id="rotate"><option value="0">Never: layers stay as you set them</option><option value="1">Every bar</option><option value="2">Every 2 bars</option><option value="4">Every 4 bars</option><option value="8">Every 8 bars</option><option value="16">Every 16 bars</option><option value="32" selected>Every 32 bars</option><option value="64">Every 64 bars</option><option value="128">Every 128 bars</option></select></label></div>
           <p class="slider-hint">One layer rests and another comes in, on a chord change, so the same number keep playing. The bass rests too.</p>
           <p class="renew-note" id="rotateNote"></p>
-        </section></details><details class="control-group" id="formGroup" open><summary><span>THE FORM</span><span id="formReadout">ENDLESS</span></summary><section class="control-section form-section">
-
-          <div class="segmented" role="radiogroup" aria-label="Form"><button id="formEndless" type="button" role="radio" aria-checked="true">Endless</button><button id="formThread" type="button" role="radio" aria-checked="false">A thread of</button><select id="threadMinutes" aria-label="Thread length"><option value="3">3 min</option><option value="5">5 min</option><option value="8">8 min</option><option value="10" selected>10 min</option><option value="15">15 min</option><option value="20">20 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">1 hour</option><option value="90">1 h 30</option><option value="120">2 hours</option></select></div>
-          <div class="thread-bar" id="threadBar" hidden><i id="threadFill"></i></div>
-          <p class="control-hint" id="formHint">Like Loopra: it never ends. Or a thread: it comes home, the layers leave one by one, and the last chord fades.</p>
-          <button id="renderThread" class="renew-button spaced-button" type="button"><svg><use href="#download"/></svg><span id="renderText">Make the thread as files</span><span>↓</span></button>
+        </section></details><details class="control-group setup-panel" open><summary><span>SETUP &amp; MIDI</span></summary><section class="control-section setup-actions"><button id="saveSetup" class="renew-button" type="button"><svg aria-hidden="true"><use href="#download"/></svg>Save setup</button><button id="loadSetup" class="renew-button" type="button"><svg aria-hidden="true"><use href="#upload"/></svg>Load setup</button><input id="setupFile" type="file" accept="application/json,.json" hidden></section><section class="control-section midi-section">
+          <div class="section-label"><span>MIDI OUT · LIVE</span><span id="midiReadout">OFF</span></div>
+          <div class="tonality-fields single"><label for="midiPort">Send the notes to<select id="midiPort"><option value="">Nothing (off)</option></select></label></div>
+          <label class="check"><input id="midiOnly" type="checkbox"><span>MIDI only: silence the built-in sounds</span></label>
+          <p class="control-hint">Channels: bass 1 · arpeggio 2 · motif 3 · pad 4 · bells 5 · low strings 6 · counter sequence 7 · long lead 8 · drone 9 · high strings 11 · slow melody 12 · echo pulse 13.</p>
         </section></details></aside>
       <section class="vine-panel" aria-label="The vine">
         <div class="harmony-head">
@@ -122,6 +121,11 @@
     <input id="timedIntro" type="range" min="0" max="120" step="5" value="10">
     <label class="slider-label" for="timedOutro"><span>Outro · layers leave one by one</span><output id="timedOutroValue">20 s</output></label>
     <input id="timedOutro" type="range" min="0" max="180" step="5" value="20">
+    <label class="slider-label" for="timedTracks"><span>Tracks · one after another</span><output id="timedTracksValue">1</output></label>
+    <input id="timedTracks" type="range" min="1" max="20" step="1" value="1">
+    <label class="check-line"><input id="keepTempo" type="checkbox" checked> Keep the tempo as it's set</label>
+    <label class="check-line"><input id="keepColour" type="checkbox" checked> Keep the colour</label>
+    <p class="capture-help">Between two tracks: a new seed, a new key and mode, and unless ticked, a new tempo and colour. Each track is a folder of its own.</p>
     <p class="capture-help" id="timedSize"></p>
     <button id="timedRecord" class="record-button disk-record" type="button"><svg aria-hidden="true"><use href="#record"/></svg><span id="timedText">Start from the beginning and record 2 h</span></button>
     <button class="text-action open-folder" type="button">Open the Recordings folder ↗</button>
@@ -148,12 +152,7 @@
       </div>
   </div>
 
-</section><details class="control-group setup-panel" open><summary><span>SETUP &amp; MIDI</span></summary><section class="control-section setup-actions"><button id="saveSetup" class="renew-button" type="button"><svg aria-hidden="true"><use href="#download"/></svg>Save setup</button><button id="loadSetup" class="renew-button" type="button"><svg aria-hidden="true"><use href="#upload"/></svg>Load setup</button><input id="setupFile" type="file" accept="application/json,.json" hidden></section><section class="control-section midi-section">
-          <div class="section-label"><span>MIDI OUT · LIVE</span><span id="midiReadout">OFF</span></div>
-          <div class="tonality-fields single"><label for="midiPort">Send the notes to<select id="midiPort"><option value="">Nothing (off)</option></select></label></div>
-          <label class="check"><input id="midiOnly" type="checkbox"><span>MIDI only: silence the built-in sounds</span></label>
-          <p class="control-hint">Channels: bass 1 · arpeggio 2 · motif 3 · pad 4 · bells 5 · low strings 6 · counter sequence 7 · long lead 8 · drone 9 · high strings 11 · slow melody 12 · echo pulse 13.</p>
-        </section></details></aside>
+</section></aside>
     </div>
     <footer class="app-footer"><span>TANGERINE II <span class="slash">/</span> REAL INSTRUMENTS <span class="app-version">v2.0 · Made with Claude · SEED <span id="seedValue"></span></span></span><div><a class="previous-version" href="./versions/v1.2.0/">Previous version · 1.2 ↗</a></div><span class="shortcut-note"><kbd>space</kbd> to play / pause</span></footer>
   </main>

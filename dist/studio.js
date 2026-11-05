@@ -1,6 +1,6 @@
 import { DiskRecorder } from './disk-recorder.js';
 
-export function initStudio({ getAudio, notify, startFromBeginning }) {
+export function initStudio({ getAudio, notify, recordTracks }) {
   const $ = (id) => document.getElementById(id);
   const duration = (seconds) => {
     const s = Math.max(0, Math.floor(seconds));
@@ -81,12 +81,14 @@ export function initStudio({ getAudio, notify, startFromBeginning }) {
     const seconds = (v) => (v >= 60 ? `${Math.floor(v / 60)} min${v % 60 ? ` ${v % 60} s` : ''}` : `${v} s`);
     $('timedIntroValue').textContent = seconds(Number($('timedIntro').value));
     $('timedOutroValue').textContent = seconds(Number($('timedOutro').value));
-    const bytes = m * 60 * 44100 * 4;
+    const tracks = Number($('timedTracks').value);
+    $('timedTracksValue').textContent = tracks;
+    const bytes = m * 60 * 44100 * 4 * tracks;
     const size = bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1).replace('.', ',')} GB` : `${Math.round(bytes / 1e6)} MB`;
-    $('timedSize').textContent = `About ${size} on your Mac (WAV, 44.1 kHz stereo).`;
+    $('timedSize').textContent = `About ${size} on your Mac (WAV, 44.1 kHz stereo)${tracks > 1 ? ` for ${tracks} tracks` : ''}.`;
     $('timedText').textContent = recorder.active
       ? (recorder.limitSeconds ? `Recording from the beginning · ${duration(recorder.seconds)} of ${minutesLabel(recorder.limitSeconds / 60)}` : 'Recording…')
-      : `Start from the beginning and record ${minutesLabel(m)}`;
+      : tracks > 1 ? `Record ${tracks} tracks of ${minutesLabel(m)}` : `Start from the beginning and record ${minutesLabel(m)}`;
     $('timedRecord').disabled = recorder.active || !available;
   }
   // Open folder: the recording in progress or the last one, or the Recordings folder.
@@ -101,9 +103,14 @@ export function initStudio({ getAudio, notify, startFromBeginning }) {
       notify(`Opened in the Finder: ${result.name}`);
     } catch (error) { notify(error.message || 'The folder could not be opened.'); }
   }));
-  for (const slider of [timedSlider, $('timedIntro'), $('timedOutro')]) slider.addEventListener('input', renderTimed);
+  for (const slider of [timedSlider, $('timedIntro'), $('timedOutro'), $('timedTracks')]) slider.addEventListener('input', renderTimed);
   $('timedRecord').addEventListener('click', async () => {
-    try { await startFromBeginning(recorder, Number(timedSlider.value), { intro: Number($('timedIntro').value), outro: Number($('timedOutro').value) }); }
+    try {
+      await recordTracks(recorder, Number(timedSlider.value), {
+        intro: Number($('timedIntro').value), outro: Number($('timedOutro').value),
+        tracks: Number($('timedTracks').value), keepTempo: $('keepTempo').checked, keepColour: $('keepColour').checked,
+      });
+    }
     catch (error) { notify(error.message || 'The recording could not start.'); }
     renderRecording();
   });
@@ -141,7 +148,8 @@ export function initStudio({ getAudio, notify, startFromBeginning }) {
     renderTimed();
     if (!available) $('diskStatus').textContent = 'Direct-to-Mac recording is available with the local launcher. Recent passages remain available below.';
     else if (recorder.error) $('diskStatus').textContent = `${recorder.error.message} ${duration(recorder.savedSeconds)} confirmed on disk.`;
-    else if (active) $('diskStatus').textContent = `● Recording ${recorder.sourceName.toLowerCase()} · ${duration(recorder.savedSeconds)} written to disk${recorder.pendingBytes ? ' · writing…' : ''}`;
+    // The "writing" mark keeps its place when hidden, so the panel below does not jump.
+    else if (active) $('diskStatus').innerHTML = `● Recording ${recorder.sourceName.toLowerCase()} · ${duration(recorder.savedSeconds)} written to disk<span class="writing-mark" style="visibility:${recorder.pendingBytes ? 'visible' : 'hidden'}"> · writing…</span>`;
     else if (recorder.state === 'saved') $('diskStatus').textContent = `Saved on your Mac · ${duration(recorder.savedSeconds)} · ${recorder.files.length} WAV file${recorder.files.length === 1 ? '' : 's'}.`;
     else if (busy) $('diskStatus').textContent = recorder.state === 'stopping' ? 'Writing the last audio block and closing the WAV files…' : 'Preparing the audio capture and local files…';
     else $('diskStatus').textContent = 'Ready. Audio is written progressively to disk, not held until the end.';

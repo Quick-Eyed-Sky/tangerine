@@ -312,6 +312,7 @@ body.focus-active .mobile-nav { display:none; }
 .stop-button:hover { color:var(--accent-light); }
 
 /* (i): an explanation, as in Draw Things: a small circle, then a note that opens under the setting. */
+.capture-status { min-height:3.2em; }
 .info-dot { display:inline-grid; place-items:center; width:17px; height:17px; margin-left:6px; padding:0; border-radius:50%; border:1px solid var(--dim); background:transparent; color:var(--muted); font:italic 11px var(--serif); line-height:1; cursor:pointer; vertical-align:middle; }
 .info-dot:hover, .info-dot[aria-expanded="true"] { color:var(--accent-light); border-color:var(--accent); }
 .info-note { font-family:var(--sans); font-size:12px; line-height:1.5; color:var(--soft); background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:9px 11px; margin:6px 0 8px; }
@@ -319,3 +320,20 @@ body.focus-active .mobile-nav { display:none; }
 
 .recent-block { margin-top:18px; padding-top:14px; border-top:1px solid var(--line); }
 .recent-block h4 { font:400 15px var(--sans); margin:4px 0 6px; color:var(--text); }
+
+/* Tracks options: two tick boxes under the tracks slider */
+.check-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0.45em 0;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+.check-line input[type="checkbox"] {
+  width: 1.05em;
+  height: 1.05em;
+  margin: 0;
+  accent-color: var(--accent, #e6d08a);
+  flex: none;
+}

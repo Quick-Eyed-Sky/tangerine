@@ -27,4 +27,10 @@ Dans **The colour** : Phaedra 1974, Stratosfear / Exit, Moon Safari, Fairlight /
 3. **Intro** (10 s par défaut) : les couches entrent une par une, dans un ordre tiré de la graine. **Outro** (20 s par défaut) : elles sortent une par une, sans baisser le volume, jusqu'à ce qu'il n'en reste qu'une, de préférence une nappe tenue.
 4. L'enregistrement s'arrête seul à la durée choisie.
 
+**Tracks** (1 à 20) : pour faire plusieurs morceaux d'affilée. Avec 10 tracks de 5 minutes, Tangerine enregistre un morceau, puis remet la musique à zéro avec une autre graine et une autre tonalité, et attaque le suivant. Chaque morceau a son propre dossier, avec son WAV et son `reglages.txt`.
+
+Deux cases à cocher, à côté des tracks :
+- **Keep the tempo as it's set** : on garde le tempo réglé ; décocher pour que chaque morceau reçoive un tempo au hasard, entre 50 et 90.
+- **Keep the colour** : on garde la couleur réglée ; décocher pour qu'elle change d'un morceau à l'autre (Phaedra, Fairlight, etc.).
+
 Les fichiers vont dans **Recordings**, à côté du lanceur : les WAV (une heure par fichier, stéréo) et `reglages.txt` (couleur, graine et réglages au départ). Ne pas modifier les réglages ni mettre en pause pendant l'enregistrement.
