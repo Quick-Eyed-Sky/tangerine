@@ -1,6 +1,8 @@
 """Bounded-memory, incremental PCM WAV recording for the local Tangerine copy."""
 from datetime import datetime
 import hashlib
+import re
+import shutil
 import json
 import os
 from pathlib import Path
@@ -21,9 +23,20 @@ class RecordingStore:
                 "files": list(session["files"]), "frames": session["frames"],
                 "sampleRate": session["rate"], "closed": session["closed"]}
 
-    def start(self, rate, source, seed=None):
+    def reveal_path(self, sid=None):
+        """The recordings folder, or one recording's folder: only folders this store made."""
+        self.folder.mkdir(parents=True, exist_ok=True)
+        if sid is None:
+            return self.folder
+        if not isinstance(sid, str) or sid not in self.sessions:
+            raise KeyError(sid)
+        return self.folder / sid
+
+    def start(self, rate, source, seed=None, settings=None):
         if type(rate) is not int or not 8000 <= rate <= 192000:
             raise ValueError("Unsupported sample rate.")
+        if settings is not None and (not isinstance(settings, str) or len(settings) > 200_000):
+            raise ValueError("Invalid settings note.")
         with self.lock:
             self.folder.mkdir(parents=True, exist_ok=True)
             sid = datetime.now().strftime('%Y-%m-%d_%H-%M-%S_') + secrets.token_hex(6)
@@ -38,6 +51,8 @@ class RecordingStore:
                         "segmentSeconds": self.segment_seconds,
                         "note": "Audio only. Consecutive WAV parts join without missing or duplicated PCM frames."}
             (self.folder / sid / 'session.json').write_text(json.dumps(metadata, indent=2), encoding='utf-8')
+            if settings is not None:
+                (self.folder / sid / 'reglages.txt').write_text(settings, encoding='utf-8')
             return self.info(session)
 
     def _open_part(self, s):
@@ -80,6 +95,40 @@ class RecordingStore:
                 if s['part_frames'] >= int(s['rate'] * self.segment_seconds): self._close_part(s)
             s['sequence'] += 1; s['last_hash'] = digest
             return self.info(s)
+
+    def append_video(self, sid, sequence, data, name):
+        """A vertical film, in pieces, beside the WAV of the same recording. Piece 0 starts the file."""
+        if not data or len(data) > 2_000_000:
+            raise ValueError('Invalid video piece.')
+        if not isinstance(name, str) or not re.fullmatch(r'Vertical_[a-z]+\.(mp4|webm)', name):
+            raise ValueError('Invalid film name.')
+        with self.lock:
+            s = self.sessions[sid]
+            folder = self.folder / sid
+            if sequence == 0:
+                (folder / name).write_bytes(data)
+            elif sequence > 0:
+                if not (folder / name).exists():
+                    raise ValueError('Film out of order.')
+                with open(folder / name, 'ab') as handle:
+                    handle.write(data)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+            else:
+                raise ValueError('Film out of order.')
+            return {"name": name, "sequence": sequence}
+
+    def discard(self, sid):
+        """Throw away a recording made by this store: its folder and its files, nothing else."""
+        with self.lock:
+            s = self.sessions.get(sid)
+            if s is None:
+                raise KeyError(sid)
+            if not s['closed']:
+                self.stop(sid)
+            shutil.rmtree(self.folder / sid)
+            del self.sessions[sid]
+            return {"discarded": sid}
 
     def stop(self, sid):
         with self.lock:

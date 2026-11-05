@@ -170,10 +170,11 @@ export class TangerineEngine {
   // recolor: about every so many bars one layer changes its sound (0: never);
   // rotate: about every so many bars one layer rests and another comes in (0: never);
   // active: the layers switched on (the rotation keeps as many on).
-  constructor({ seed = 1, key = { tonic: 2, mode: 'dorian' }, complexity = 1, wander = 1, changes = 8, pedal = 0, evolution = 0.7, renew = 0, recolor = 0, rotate = 0, active = LAYER_IDS, drift = 0, window = DEFAULT_WINDOW, lengths = {}, salt = 0 } = {}) {
+  constructor({ seed = 1, key = { tonic: 2, mode: 'dorian' }, complexity = 1, wander = 1, changes = 8, every = null, pedal = 0, evolution = 0.7, renew = 0, recolor = 0, rotate = 0, active = LAYER_IDS, drift = 0, window = DEFAULT_WINDOW, lengths = {}, salt = 0 } = {}) {
     this.seed = seed >>> 0;
     this.home = { tonic: mod12(key.tonic), mode: MODES[key.mode] ? key.mode : 'dorian' };
-    this.settings = { complexity: clamp(complexity), wander: clamp(wander), changes: clamp(Math.round(changes), 0, 12), pedal: clamp(pedal), evolution: clamp(evolution), renew: Math.max(0, Math.round(renew) || 0), recolor: Math.max(0, Math.round(recolor) || 0), rotate: Math.max(0, Math.round(rotate) || 0), drift: clamp(drift) };
+    // every: bars between key changes (0: never), or null to use the count in changes per window.
+    this.settings = { complexity: clamp(complexity), wander: clamp(wander), changes: clamp(Math.round(changes), 0, 12), every: every === null ? null : Math.max(0, Number(every) || 0), pedal: clamp(pedal), evolution: clamp(evolution), renew: Math.max(0, Math.round(renew) || 0), recolor: Math.max(0, Math.round(recolor) || 0), rotate: Math.max(0, Math.round(rotate) || 0), drift: clamp(drift) };
     this.active = LAYER_IDS.filter((id) => active.includes(id));
     this.window = window > 0 ? window : DEFAULT_WINDOW;
     this.salt = salt;
@@ -243,6 +244,11 @@ export class TangerineEngine {
   // The step of the next key change: so many per window when endless, so many in
   // the whole thread (before it heads home) when it has an ending.
   _drawModulationGap(from = this.stepIndex) {
+    const every = this.settings.every;
+    if (every !== null) {
+      if (!(every > 0) || this.ending?.homing) return Infinity;
+      return from + Math.max(1, Math.round(every * STEPS_PER_BAR * (0.75 + 0.5 * this.conductor())));
+    }
     const n = this.settings.changes;
     if (!(n > 0) || this.ending?.homing) return Infinity;
     const span = this.ending ? Math.max(8 * STEPS_PER_BAR, this.ending.homeBy) / (n + 0.5) : this.window / n;
@@ -277,8 +283,9 @@ export class TangerineEngine {
       if (settings[name] !== undefined) this.settings[name] = clamp(settings[name]);
     }
     if (settings.window > 0) this.window = settings.window;
-    if (settings.changes !== undefined) {
-      this.settings.changes = clamp(Math.round(settings.changes), 0, 12);
+    if (settings.changes !== undefined) this.settings.changes = clamp(Math.round(settings.changes), 0, 12);
+    if (settings.every !== undefined || settings.changes !== undefined) {
+      if (settings.every !== undefined) this.settings.every = Math.max(0, Number(settings.every) || 0);
       this.nextModulationAt = this._drawModulationGap();
     }
     if (settings.recolor !== undefined) {

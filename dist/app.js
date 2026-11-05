@@ -1,22 +1,75 @@
 import { initStudio } from './studio.js';
-import { TangerineAudio, renderOffline, renderNotes, MAX_RENDER_MINUTES, encodeWav, LAYER_IDS, SOUNDS, DIVISIONS, DIVISION_LABEL, DEFAULT_LAYERS, DEFAULT_GLOBAL, ENVELOPE_LIMITS, KEEP_SECONDS, ECHO_MAX } from './audio.js?v=12';
+import { VerticalFilm, pickPalette } from './vertical.js';
+import { hashSeed, mulberry32 } from './rng.js';
+import { TangerineAudio, Graph, renderOffline, renderNotes, MAX_RENDER_MINUTES, encodeWav, LAYER_IDS, SOUNDS, DIVISIONS, DIVISION_LABEL, DEFAULT_LAYERS, DEFAULT_GLOBAL, ENVELOPE_LIMITS, KEEP_SECONDS, ECHO_MAX } from './audio.js?v=12';
 import { LAYERS, SEQ_IDS, HOLD_IDS } from './engine.js';
+import { BANK, COLOURS, sampledKey, sampledSound, colourSound, colourPool, colourSpace, colourSamples } from './samples.js';
 import { chordName, keyName, MODULATION_LABEL, METHOD_LABEL, KEY_NAMES, MODES, MODE_WEIGHT } from './theory.js';
 
 const $ = (id) => document.getElementById(id);
-const storageKey = 'tangerine.setup.v1.3';
-const VERSION = '1.3.0';
+const storageKey = 'tangerine.setup.v2';
+const VERSION = '2.1.0';
+
+// Slow change, made visible: a small marker on each Shape & Echo slider shows where that
+// setting is now. The factor is the audio's own (audio._drift), so the marker follows the sound.
+// Decay also depends on each note's length in the sound; that part is not in the marker.
+const DRIFTED = [
+  { key: 'a', name: 'attack', octaves: 0.6, now: (s, f) => Math.max(0.001, s.a * f), envelope: true },
+  { key: 'd', name: 'decay', octaves: 0.8, now: (s, f) => s.d * f, envelope: true },
+  { key: 'r', name: 'release', octaves: 0.6, now: (s, f) => Math.max(0.01, s.r * f), envelope: true },
+  { key: 'gate', name: 'gate', octaves: 0.8, now: (s, f) => Math.min(1, s.gate * f), envelope: true },
+  { key: 'feedback', name: 'feedback', octaves: 0.3, now: (s, f) => Math.min(1, s.delay.feedback * f) },
+  { key: 'mix', name: 'mix', octaves: 0.6, now: (s, f) => Math.min(1, s.delay.mix * f) },
+];
+
+function addDriftTicks(card) {
+  for (const { key } of DRIFTED) {
+    const input = card.querySelector(`[data-env="${key}"], [data-field="${key}"]`);
+    if (!input) continue;
+    const wrap = document.createElement('span');
+    const tick = document.createElement('i');
+    wrap.className = 'drift-wrap';
+    tick.className = 'drift-tick';
+    tick.dataset.tick = key;
+    tick.title = 'Where this setting is now, moved by Slow change';
+    tick.setAttribute('aria-hidden', 'true');
+    input.replaceWith(wrap);
+    wrap.append(input, tick);
+  }
+}
+
+function renderDrift() {
+  // The audio's own drift function, run on the audio's current step (0 before the first start).
+  const drift = { global: audio.global, seed: audio.seed, local: audio.graph ? audio.graph.local : 0 };
+  for (const id of LAYER_IDS) {
+    const entry = cards[id];
+    if (!entry) continue;
+    const s = settings.layers[id];
+    for (const { key, name, octaves, now, envelope } of DRIFTED) {
+      const tick = entry.card.querySelector(`[data-tick="${key}"]`);
+      if (!tick) continue;
+      const value = now(s, Graph.prototype._drift.call(drift, id, name, octaves));
+      const position = envelope ? toSlider(key, value) : Math.round(value * 100);
+      tick.style.setProperty('--p', Math.min(100, Math.max(0, position)) / 100);
+    }
+  }
+}
 const COLORS = {
-  bass: '#f28a2e', arp: '#ffc77d', motif: '#ff6a4d', pad: '#c9581c', bells: '#f7ead2',
-  cello: '#d0703a', seq2: '#ffa24a', lead: '#ff8a70', drone: '#b0683e', air: '#ffdcae',
-  theme: '#ffb894', pulse: '#e89a52',
+  bass: '#4fbf9f', arp: '#9adfb8', motif: '#6a9fe0', pad: '#3b7fb8', bells: '#dcefe8',
+  cello: '#3f9c8a', seq2: '#7fd08a', lead: '#8ab8ee', drone: '#2f6f86', air: '#bfe8f0',
+  theme: '#a6d6c4', pulse: '#5cc0d0',
 };
-const RENEW = [0, 32, 64, 128];
+// Bars between repeats: a sequence's renewal, a layer's new sound, a layer's rest. 0: never.
+const BAR_STEPS = [0, 1, 2, 4, 8, 16, 32, 64, 128];
+const RENEW = BAR_STEPS;
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-const RECOLOR = [0, 64, 32];
-const ROTATE = [0, 32, 16];
-const DEFAULT_ENGINE = { key: { tonic: 6, mode: 'lydian' }, complexity: 0.58, wander: 0.35, changes: 6, pedal: 0.56, evolution: 1, renew: 32, recolor: 32, rotate: 32, lengths: { bass: 16, arp: 12, motif: 7, seq2: 10, pulse: 5 } };
+const RECOLOR = BAR_STEPS;
+const ROTATE = BAR_STEPS;
+// Bars between key changes: 0 never. A key change waits for a chord change, and a chord lasts 4 to 16 bars,
+// so two bars is already about one change per chord: the rate cannot go faster than the chords.
+const KEY_EVERY = [0, 32, 16, 8, 4, 2];
+const DEFAULT_ENGINE = { key: { tonic: 6, mode: 'lydian' }, complexity: 0.58, wander: 0.35, changes: 6, every: 16, pedal: 0.56, evolution: 1, renew: 4, recolor: 4, rotate: 8, lengths: { bass: 16, arp: 12, motif: 7, seq2: 10, pulse: 5 } };
 const freshSettings = () => ({
   seed: (Math.random() * 4294967296) >>> 0,
   salt: 0,
@@ -24,6 +77,7 @@ const freshSettings = () => ({
   global: { ...DEFAULT_GLOBAL, bpm: 60, drift: 1 },
   layers: JSON.parse(JSON.stringify(DEFAULT_LAYERS)),
   form: { thread: false, minutes: 10 },
+  colour: 'synth',
 });
 
 const THREAD_MINUTES = [3, 5, 8, 10, 15, 20, 30, 45, 60, 90, 120];
@@ -48,6 +102,10 @@ function readSetup(value) {
     for (const l of Object.values(v.layers)) if (l?.delay && Number.isFinite(l.delay.feedback)) l.delay.feedback = Math.min(1, l.delay.feedback / ECHO_MAX);
   }
   if (v.version < 3) e.renew ||= DEFAULT_ENGINE.renew;
+  // Version 4: the new defaults for the three bar settings, once, for setups saved before.
+  if (v.version < 4) { e.renew = DEFAULT_ENGINE.renew; e.recolor = DEFAULT_ENGINE.recolor; e.rotate = DEFAULT_ENGINE.rotate; }
+  // Key changes were a count per ten minutes; now they are bars between changes (the same rate at this tempo).
+  if (e.every === undefined) e.every = e.changes > 0 ? nearestKeyEvery(((Number(g.bpm) || DEFAULT_GLOBAL.bpm) * 2.5) / e.changes) : 0;
   e.renew ??= DEFAULT_ENGINE.renew;
   e.recolor ??= DEFAULT_ENGINE.recolor;
   e.rotate ??= DEFAULT_ENGINE.rotate;
@@ -56,17 +114,17 @@ function readSetup(value) {
   v.layers = Object.fromEntries(LAYER_IDS.map((id) => [id, v.layers[id] ? { ...v.layers[id] } : JSON.parse(JSON.stringify(DEFAULT_LAYERS[id]))]));
   if (!e.key || !Number.isInteger(e.key.tonic) || e.key.tonic < 0 || e.key.tonic > 11 || !MODES[e.key.mode]) return null;
   if (!['complexity', 'wander', 'pedal', 'evolution'].every((n) => unitOk(e[n]))) return null;
-  if (!Number.isInteger(e.changes) || e.changes < 0 || e.changes > 12 || !RENEW.includes(e.renew) || !RECOLOR.includes(e.recolor) || !ROTATE.includes(e.rotate)) return null;
+  if (!Number.isInteger(e.changes) || e.changes < 0 || e.changes > 12 || !KEY_EVERY.includes(e.every) || !RENEW.includes(e.renew) || !RECOLOR.includes(e.recolor) || !ROTATE.includes(e.rotate)) return null;
   if (!LAYERS.filter((l) => l.kind === 'seq').every((l) => l.lengths.includes(e.lengths[l.id]))) return null;
   if (!(v.global.bpm >= 6 && v.global.bpm <= 140) || !['volume', 'wet', 'space', 'motion', 'drift'].every((n) => unitOk(v.global[n]))) return null;
   if (!Number.isInteger(v.seed) || v.seed < 0 || v.seed > 4294967295) return null;
   for (const id of LAYER_IDS) {
     const l = v.layers[id];
-    if (typeof l.on !== 'boolean' || !unitOk(l.level) || !SOUNDS[id][l.sound]) return null;
+    if (typeof l.on !== 'boolean' || !unitOk(l.level) || !(SOUNDS[id][l.sound] || /^s:[\w.-]+$/.test(l.sound))) return null;
     for (const [name, [lo, hi]] of Object.entries(ENVELOPE_LIMITS)) if (!(l[name] >= lo && l[name] <= hi)) return null;
     if (!l.delay || !DIVISIONS[l.delay.div] || !unitOk(l.delay.mix) || !unitOk(l.delay.feedback)) return null;
   }
-  return { seed: v.seed, salt: v.salt || 0, engine: e, global: v.global, layers: v.layers, form: validForm(v.form) };
+  return { seed: v.seed, salt: v.salt || 0, engine: e, global: v.global, layers: v.layers, form: validForm(v.form), colour: COLOURS[v.colour] ? v.colour : 'synth' };
 }
 
 let settings = freshSettings();
@@ -74,7 +132,7 @@ try {
   settings = readSetup(JSON.parse(localStorage.getItem(storageKey) || localStorage.getItem('tangerine.sol.setup.v1'))) || settings;
 } catch { /* A new journey is drawn. */ }
 
-const snapshot = () => ({ format: 'tangerine-setup', version: 3, app: VERSION, ...JSON.parse(JSON.stringify(settings)) });
+const snapshot = () => ({ format: 'tangerine-setup', version: 4, app: VERSION, ...JSON.parse(JSON.stringify(settings)) });
 let saveTimer;
 function persist() {
   clearTimeout(saveTimer);
@@ -101,6 +159,20 @@ const time = (seconds) => { const s = Math.max(0, Math.floor(seconds)); return `
 const paintRange = (input) => input.style.setProperty('--range', `${100 * (input.value - input.min) / (input.max - input.min)}%`);
 const gcd = (a, b) => (b ? gcd(b, a % b) : a);
 const lcm = (a, b) => a * b / gcd(a, b);
+// The value nearest to bars in KEY_EVERY, on a log scale (for a setting saved in the older units).
+const nearestKeyEvery = (bars) => KEY_EVERY.filter(Boolean).reduce((best, b) => (Math.abs(Math.log2(b / bars)) < Math.abs(Math.log2(best / bars)) ? b : best));
+// Key changes read as bars, with the seconds one bar-step takes at this tempo.
+function keyEveryLabel(bars) {
+  if (!bars) return 'never';
+  const label = bars === 2 ? 'every 2 bars' : `every ${bars} bars`;
+  const seconds = bars * 4 * 60 / settings.global.bpm;
+  return `${label} <small>≈ ${seconds >= 10 ? Math.round(seconds) : seconds.toFixed(1)} s</small>`;
+}
+// Minutes and seconds: the length of a count of sixteenth-note steps at this tempo.
+const stepsAsTime = (steps) => {
+  const s = Math.round(steps * 60 / settings.global.bpm / 4);
+  return `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, '0')} s`;
+};
 
 // ---------------------------------------------------------------- global controls
 
@@ -108,7 +180,7 @@ const sliders = [
   { id: 'bpm', get: () => settings.global.bpm, set: (v) => { settings.global.bpm = v; audio.setGlobal({ bpm: v }); }, show: (v) => `${v} <small>BPM</small>` },
   { id: 'complexity', get: () => Math.round(settings.engine.complexity * 100), set: (v) => { settings.engine.complexity = v / 100; audio.setEngine({ complexity: v / 100 }); } },
   { id: 'wander', get: () => Math.round(settings.engine.wander * 100), set: (v) => { settings.engine.wander = v / 100; audio.setEngine({ wander: v / 100 }); } },
-  { id: 'changes', get: () => settings.engine.changes, set: (v) => { settings.engine.changes = v; audio.setEngine({ changes: v }); }, show: (v) => `${v} <small>${settings.form.thread ? 'IN THE THREAD' : 'PER 10 MIN'}</small>` },
+  { id: 'changes', get: () => KEY_EVERY.indexOf(settings.engine.every), set: (v) => { settings.engine.every = KEY_EVERY[v]; settings.engine.changes = v ? 1 : 0; audio.setEngine({ every: KEY_EVERY[v], changes: settings.engine.changes }); }, show: (v) => keyEveryLabel(KEY_EVERY[v]) },
   { id: 'drift', get: () => Math.round(settings.global.drift * 100), set: (v) => { settings.global.drift = v / 100; audio.setGlobal({ drift: v / 100 }); } },
   { id: 'pedal', get: () => Math.round(settings.engine.pedal * 100), set: (v) => { settings.engine.pedal = v / 100; audio.setEngine({ pedal: v / 100 }); } },
   { id: 'evolution', get: () => Math.round(settings.engine.evolution * 100), set: (v) => { settings.engine.evolution = v / 100; audio.setEngine({ evolution: v / 100 }); } },
@@ -128,10 +200,6 @@ for (const slider of sliders) {
 function syncThreadLength() {
   const minimum = 48 / settings.global.bpm;
   const allowed = THREAD_MINUTES.filter((n) => n >= minimum);
-  if (!allowed.includes(settings.form.minutes)) settings.form.minutes = allowed[0];
-  for (const option of $('threadMinutes').options) option.disabled = Number(option.value) < minimum;
-  $('threadMinutes').value = String(settings.form.minutes);
-  $('formReadout').textContent = settings.form.thread ? `${settings.form.minutes} MIN THREAD` : 'ENDLESS';
   $('slowTempoHint').hidden = settings.global.bpm >= 16;
   $('slowTempoHint').textContent = `Very slow tempo: a timed thread needs at least twelve bars (${Math.ceil(minimum * 10) / 10} minutes at this tempo). Shorter lengths are unavailable. Echo delay keeps its existing 3.9-second maximum.`;
 }
@@ -149,7 +217,7 @@ function renderControls() {
   const l = settings.engine.lengths;
   const meet = lcm(lcm(l.bass, l.arp), l.motif * 2);
   const all = [[l.seq2 * 3, 'seq2'], [l.pulse * 4, 'pulse']].reduce((m, [n, id]) => (settings.layers[id].on ? lcm(m, n) : m), meet);
-  $('cycleReadout').textContent = `MEET EVERY ${all}`;
+  $('cycleReadout').textContent = `MEET EVERY ${all} · ${stepsAsTime(all)}`;
   $('renew').value = String(settings.engine.renew);
   $('recolor').value = String(settings.engine.recolor);
   $('rotate').value = String(settings.engine.rotate);
@@ -296,6 +364,7 @@ for (const def of LAYERS) {
       </div>
     </details>`;
   $('layerList').append(card);
+  addDriftTicks(card);
   const update = (patch) => {
     Object.assign(settings.layers[id], patch, patch.delay ? { delay: { ...settings.layers[id].delay, ...patch.delay } } : {});
     audio.setLayer(id, patch);
@@ -308,7 +377,11 @@ for (const def of LAYERS) {
     audio.setSolo(audio.solo === id ? null : id);
     renderSolo();
   });
-  card.querySelector('[data-field="sound"]').addEventListener('change', (e) => update({ sound: e.target.value }));
+  card.querySelector('[data-field="sound"]').addEventListener('change', (e) => {
+    const sample = SOUNDS[id][e.target.value]?.sample;
+    if (sample) BANK.require(sample);
+    update({ sound: e.target.value });
+  });
   card.querySelectorAll('[data-field="div"]').forEach((el) => el.addEventListener('change', (e) => update({ delay: { div: e.target.value } })));
   card.querySelector('[data-field="level"]').addEventListener('input', (e) => update({ level: Number(e.target.value) / 100 }));
   card.querySelector('[data-field="feedback"]').addEventListener('input', (e) => update({ delay: { feedback: Number(e.target.value) / 100 } }));
@@ -359,7 +432,7 @@ function renderLayer(id) {
     card.querySelector(`[data-out="${el.dataset.env}"]`).textContent = showEnvelope(el.dataset.env, s[el.dataset.env]);
   });
   card.querySelectorAll('input[type="range"]').forEach(paintRange);
-  if (def.kind === 'seq') cards[id].info.textContent = `${settings.engine.lengths[id]} STEPS${STEP_NAME[def.div].toUpperCase()} · ${SOUNDS[id][s.sound].label.toUpperCase()}`;
+  if (def.kind === 'seq') cards[id].info.textContent = `${settings.engine.lengths[id]} STEPS${STEP_NAME[def.div].toUpperCase()} · ${(SOUNDS[id][s.sound]?.label || 'Sample').toUpperCase()}`;
   else if (LAYER_INFO[id]) cards[id].info.textContent = LAYER_INFO[id];
 }
 
@@ -396,7 +469,7 @@ function drawRing(id, position, harmony) {
       const y = 23 + 17 * Math.sin(angle);
       const on = pattern[i]?.on;
       const lit = i === index && audio.playing;
-      html += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${lit ? 3.4 : on ? 2.2 : 1.2}" fill="${on || lit ? color : '#4a382a'}" opacity="${lit ? 1 : on ? 0.55 : 1}"/>`;
+      html += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${lit ? 3.4 : on ? 2.2 : 1.2}" fill="${on || lit ? color : '#304442'}" opacity="${lit ? 1 : on ? 0.55 : 1}"/>`;
     }
   } else if (HOLD_IDS.includes(id)) {
     const notes = id === 'pad' ? harmony?.voicing || [] : audio.graph?.lastHold[id] || [];
@@ -406,13 +479,13 @@ function drawRing(id, position, harmony) {
       const angle = -Math.PI / 2 + 2 * Math.PI * (midi % 12) / 12;
       html += `<line x1="23" y1="23" x2="${(23 + 18 * Math.cos(angle)).toFixed(1)}" y2="${(23 + 18 * Math.sin(angle)).toFixed(1)}" stroke="${color}" stroke-width="${i === 0 ? 2.2 : 1.4}" opacity="${0.5 + 0.1 * i}"/>`;
     });
-    html += '<circle cx="23" cy="23" r="19" fill="none" stroke="#4a382a"/>';
+    html += '<circle cx="23" cy="23" r="19" fill="none" stroke="#304442"/>';
   } else if (id !== 'bells') {
     // A bowed or held line: a slow wave.
     sig = 'line';
     if (sig === cards[id].lastSig) return;
     const points = Array.from({ length: 25 }, (_, i) => `${(5 + 36 * i / 24).toFixed(1)},${(23 + (id === 'lead' ? 9 : 6) * Math.sin(i / 24 * Math.PI * (id === 'lead' ? 3 : 2))).toFixed(1)}`).join(' ');
-    html = `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.6" opacity=".75"/><circle cx="23" cy="23" r="19" fill="none" stroke="#4a382a"/>`;
+    html = `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.6" opacity=".75"/><circle cx="23" cy="23" r="19" fill="none" stroke="#304442"/>`;
   } else {
     sig = 'bells';
     if (sig === cards[id].lastSig) return;
@@ -458,13 +531,13 @@ function onVisual(item) {
   }
   if (item.mutation) {
     const card = cards[item.mutation.layer]?.card;
-    if (card) { card.animate([{ borderColor: COLORS[item.mutation.layer] }, { borderColor: '#382a1f' }], { duration: 2400 }); }
+    if (card) { card.animate([{ borderColor: COLORS[item.mutation.layer] }, { borderColor: '#213634' }], { duration: 2400 }); }
   }
   if (item.recolor?.sound) {
     const { layer, sound } = item.recolor;
     settings.layers[layer].sound = sound;
     renderLayer(layer);
-    cards[layer].card.animate([{ borderColor: COLORS[layer] }, { borderColor: '#382a1f' }], { duration: 3200 });
+    cards[layer].card.animate([{ borderColor: COLORS[layer] }, { borderColor: '#213634' }], { duration: 3200 });
     if (settings.layers[layer].on) notify(`${cards[layer].def.name} changes its sound: ${SOUNDS[layer][sound].label}.`);
     persist();
   }
@@ -474,14 +547,14 @@ function onVisual(item) {
     settings.layers[on].on = true;
     for (const id of [off, on]) {
       renderLayer(id);
-      cards[id].card.animate([{ borderColor: COLORS[id] }, { borderColor: '#382a1f' }], { duration: 3200 });
+      cards[id].card.animate([{ borderColor: COLORS[id] }, { borderColor: '#213634' }], { duration: 3200 });
     }
     renderControls();
     notify(`${cards[off].def.name} rests. ${cards[on].def.name} comes in.`);
     persist();
   }
   if (item.renewed) {
-    for (const id of SEQ_IDS) cards[id].card.animate([{ borderColor: COLORS[id] }, { borderColor: '#382a1f' }], { duration: 3200 });
+    for (const id of SEQ_IDS) cards[id].card.animate([{ borderColor: COLORS[id] }, { borderColor: '#213634' }], { duration: 3200 });
     notify('New sequences, by themselves.');
   }
 }
@@ -505,7 +578,7 @@ function drawVine() {
   const xOf = (t) => nowX - (now - t) * px;
   const yOf = (midi) => h - 14 - (clamp(midi, 28, 100) - 28) / 72 * (h - 34);
   // Faint octave lines.
-  g.strokeStyle = '#2a1f17';
+  g.strokeStyle = '#182927';
   g.lineWidth = 1;
   for (let midi = 36; midi <= 96; midi += 12) { g.beginPath(); g.moveTo(0, yOf(midi) + 0.5); g.lineTo(w, yOf(midi) + 0.5); g.stroke(); }
   // Chord changes.
@@ -513,9 +586,9 @@ function drawVine() {
   for (const mark of marks) {
     const x = xOf(mark.t);
     if (x < -60 || x > w) continue;
-    g.strokeStyle = mark.modulation ? '#f28a2e88' : '#4a382a';
+    g.strokeStyle = mark.modulation ? '#4fbf9f88' : '#304442';
     g.beginPath(); g.moveTo(x + 0.5, 0); g.lineTo(x + 0.5, h); g.stroke();
-    g.fillStyle = mark.modulation ? '#ffbb6b' : '#ab9580';
+    g.fillStyle = mark.modulation ? '#9adfb8' : '#88a39e';
     if (x <= nowX) g.fillText(mark.name, x + 5, 13);
   }
   const feed = audio.feed;
@@ -553,7 +626,7 @@ function drawVine() {
     if (fresh) { g.globalAlpha = 0.35; g.fillRect(x - 2, y - thick / 2 - 3, width + 4, thick + 6); }
     g.globalAlpha = 1;
   }
-  g.strokeStyle = '#f28a2e';
+  g.strokeStyle = '#4fbf9f';
   g.globalAlpha = 0.6;
   g.beginPath(); g.moveTo(nowX + 0.5, 0); g.lineTo(nowX + 0.5, h); g.stroke();
   g.globalAlpha = 1;
@@ -586,16 +659,6 @@ function renderTransport() {
         : finished ? 'The thread is complete.' : elapsed > 0 ? 'Paused. The vine will wait.' : 'Ready when you are.';
   $('recordPassageButton').setAttribute('aria-pressed', String(!!audio.recording));
   $('memoryRecordText').textContent = audio.recording ? 'Stop and keep' : 'Record a passage';
-  $('formEndless').setAttribute('aria-checked', String(!settings.form.thread));
-  $('formThread').setAttribute('aria-checked', String(settings.form.thread));
-  $('threadMinutes').value = String(settings.form.minutes);
-  $('formReadout').textContent = settings.form.thread ? `${settings.form.minutes} MIN THREAD` : 'ENDLESS';
-  $('threadBar').hidden = !settings.form.thread;
-  const long = settings.form.minutes > MAX_RENDER_MINUTES;
-  $('renderText').textContent = rendering ? $('renderText').textContent : long ? 'Make the thread as notes (MIDI, ABC)' : 'Make the thread as files';
-  $('formHint').textContent = settings.form.thread
-    ? `Plays from its beginning. Twenty-four bars before the end it heads home; the last eight bars hold the home chord while the layers leave.${long ? ' Longer than 20 minutes: at the end, the last 20 minutes are kept as sound; the whole thread can be made as notes.' : ''}`
-    : 'Like Loopra: it never ends. Or a thread: it comes home, the layers leave one by one, and the last chord fades.';
   renderControls();
 }
 
@@ -642,6 +705,83 @@ async function restart() {
   persist();
 }
 $('restart').addEventListener('click', (e) => { e.currentTarget.blur(); restart(); });
+
+// Stop: the sound stops and the vine goes back to its first bar, with the same seed and settings.
+// A recording to this computer in progress is finished and kept (its files stay in Recordings).
+async function stopVine() {
+  const recorder = window.tangerine.diskRecorder;
+  tracksRunning = false;
+  if (recorder?.active) await recorder.stop();
+  pieceStop?.();
+  stopStaging();
+  if (audio.playing) await audio.pause();
+  if (audio.graph) audio.graph.releaseAll(audio.currentTime);
+  audio.setSeed(settings.seed);
+  resetDisplay();
+  elapsed = 0;
+  startedAt = null;
+  renderTransport();
+  notify('Stopped. Back to the first bar.');
+}
+$('stopButton').addEventListener('click', (e) => { e.currentTarget.blur(); stopVine(); });
+
+// The (i) buttons: a short explanation of a setting, opened by a click, in the same place each time.
+const INFO = {
+  piece: 'Restarts the vine from its first bar, with the same seed and settings, and records from the first sound until the chosen length. Then it stops by itself.',
+  intro: 'At the start, the layers come in one by one, in an order drawn from the seed, until all of them sound. The volume is not lowered: a layer simply joins. Zero: they all start at once.',
+  outro: 'At the end, the layers leave one by one, at the same volume, until one is left (a held layer when there is one), and the piece stops. Zero: it stops at once.',
+  changes: 'How often the key and mode change, in bars, so the rate is the same at any tempo. A change happens on a chord change, and a chord lasts 4 to 16 bars, so the fastest setting is one change per chord. The changes move through shared notes, and now and then to a new key. Never keeps the key.',
+  meet: 'Each sequence has its own length (16, 12, 7, 10 and 5 steps) and they drift apart. This is the number of sixteenth-note steps after which all of them line up again at their first step, and the time it takes at this tempo.',
+  evolution: 'How often one sequence changes one detail (a step, a note, an octave, an accent). At 100 it is about every 7 passes of that sequence; at 0, about every 64 passes. The harmony is never changed.',
+  renew: 'Brand new sequences by themselves, every so many bars. The harmony stays; the patterns change on a chord change. Never: only with the New sequences button.',
+  drift: 'Note lengths, echoes, brightness, levels, richness, distance and held bass wander slowly around the settings you chose, each on its own wave of a few minutes. At 0, nothing moves.',
+  recolor: 'Every so many bars, one layer takes another of its sounds, on a chord change, and its card shows the new one. In a colour, only that colour\'s sounds are used.',
+  rotate: 'Every so many bars, one layer rests and another comes in, on a chord change, so the same number of layers keep playing. The bass rests too.',
+  form: 'Endless: the vine never ends. A thread of a chosen length: it plays from its first bar, comes home to the home key during its last 24 bars, the layers leave one by one, and the last chord fades. Make the thread as files: it is rendered offline.',
+  colour: 'A colour decides which instrument each layer plays. The samples are read from the SAMPLES folder; a colour that is missing some of them plays the synthesized sound instead. Sounds change moves a layer between the sounds of the colour.',
+  keep: 'Recording to this computer writes WAV files as the vine plays, until you stop. Recover a recent passage keeps the last minutes in memory, so you can save a moment you have just heard.',
+};
+function addInfo(anchor, key, host) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'info-dot';
+  button.textContent = 'i';
+  button.setAttribute('aria-label', 'About this setting');
+  button.setAttribute('aria-expanded', 'false');
+  const note = document.createElement('p');
+  note.className = 'info-note';
+  note.hidden = true;
+  note.textContent = INFO[key];
+  anchor.append(button);
+  host.after(note);
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    note.hidden = !note.hidden;
+    button.setAttribute('aria-expanded', String(!note.hidden));
+  });
+}
+const INFO_SPOTS = [
+  ['#timedBlock h3', 'piece', '#timedBlock h3'],
+  ['#timedBlock label[for="timedIntro"] > span', 'intro', '#timedIntro'],
+  ['#timedBlock label[for="timedOutro"] > span', 'outro', '#timedOutro'],
+  ['label[for="changes"] > span', 'changes', '#changes'],
+  ['#cycleReadout', 'meet', '#sequencesGroup .control-section'],
+  ['label[for="evolution"] > span', 'evolution', '#evolution'],
+  ['label[for="renew"]', 'renew', '#renew'],
+  ['label[for="drift"] > span', 'drift', '#drift'],
+  ['label[for="recolor"]', 'recolor', '#recolor'],
+  ['label[for="rotate"]', 'rotate', '#rotate'],
+  ['#formGroup > summary > span:first-child', 'form', '#formGroup .control-section'],
+  ['#colourGroup > summary > span:first-child', 'colour', '#colourGroup .control-section'],
+  ['#keepSection h2', 'keep', '#keepSection h2'],
+];
+for (const [selector, key, host] of INFO_SPOTS) {
+  const anchor = document.querySelector(selector);
+  const hostEl = document.querySelector(host);
+  if (anchor && hostEl) addInfo(anchor, key, hostEl);
+}
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape') document.querySelectorAll('.info-note:not([hidden])').forEach((note) => { note.hidden = true; }); });
 
 // The vine, full screen (Esc leaves it; a double click too).
 const vineFrame = $('vineFrame');
@@ -706,78 +846,8 @@ function resetDisplay() {
   renderTrail();
 }
 
-// ---------------------------------------------------------------- the form
-
-function setForm(thread) {
-  settings.form.thread = thread;
-  if (!thread) audio.startThread(null);
-  else if (audio.playing) {
-    // A thread starts from its beginning: same seed, same settings.
-    audio.startThread(settings.form.minutes);
-    resetDisplay();
-    elapsed = 0;
-    startedAt = performance.now();
-    notify(`A thread of ${settings.form.minutes} minutes begins with the next note.`);
-  }
-  renderTransport();
-  persist();
-}
-$('formEndless').addEventListener('click', () => setForm(false));
-$('formThread').addEventListener('click', () => setForm(true));
-$('threadMinutes').addEventListener('change', (e) => {
-  settings.form.minutes = Number(e.target.value);
-  if (settings.form.thread && audio.thread) {
-    // Same thread, new length: the ending moves, the beginning stays.
-    audio.engine.setEnding(settings.form.minutes * 60 * settings.global.bpm * 4 / 60);
-    audio.thread.minutes = settings.form.minutes;
-  }
-  renderTransport();
-  persist();
-});
-
-let rendering = false;
 const RECORD_LIMIT = 30 * 60;
 let stopping = false;
-$('renderThread').addEventListener('click', async () => {
-  if (rendering) return;
-  rendering = true;
-  $('renderThread').disabled = true;
-  const minutes = settings.form.minutes;
-  const began = new Date();
-  try {
-    if (audio.playing) { await audio.pause(); elapsed += (performance.now() - startedAt) / 1000; startedAt = null; renderTransport(); }
-    const subtitle = `seed ${settings.seed} · ${minutes} min thread`;
-    if (minutes > MAX_RENDER_MINUTES) {
-      // Too long to hold as sound: the notes of the whole thread, in a moment.
-      const result = renderNotes({
-        seed: settings.seed, minutes,
-        engine: { ...settings.engine, key: { ...settings.engine.key }, salt: settings.salt },
-        layers: settings.layers, global: settings.global,
-        names: { title: 'Tangerine', subtitle },
-      });
-      addTake({ ...result, wav: null, began }, `thread${minutes}min_notes`, `Thread ${minutes} min · notes`);
-      notify('The whole thread as notes: MIDI and ABC, under Keep. Sound is made for threads up to 20 minutes.');
-      throw null;
-    }
-    notify(`Making a thread of ${minutes} minutes, faster than it plays. Keep this tab in front.`);
-    const result = await renderOffline({
-      seed: settings.seed, minutes,
-      engine: { ...settings.engine, key: { ...settings.engine.key }, salt: settings.salt },
-      layers: settings.layers, global: settings.global,
-      names: { title: 'Tangerine', subtitle },
-      onProgress: (x) => { $('renderText').textContent = `Making the thread… ${Math.round(100 * x)} %`; },
-    });
-    const wav = encodeWav([result.buffer.getChannelData(0), result.buffer.getChannelData(1)], result.buffer.sampleRate);
-    addTake({ wav, midi: result.midi, abc: result.abc, lead: result.lead, seconds: result.buffer.duration, began }, `thread${minutes}min`, `Thread ${minutes} min`);
-    notify('The thread is ready: WAV, MIDI and ABC, under Keep.');
-  } catch (error) {
-    if (error) notify(error.message || 'The thread could not be made.');
-  }
-  $('renderThread').disabled = false;
-  rendering = false;
-  renderTransport();
-});
-
 // ---------------------------------------------------------------- keeping passages
 
 const takes = [];
@@ -833,6 +903,180 @@ async function finishRecording() {
   addTake(result, 'take', 'Take');
   notify('Take kept: WAV, MIDI and ABC, just below.');
 }
+
+// Whole pieces: tracks of the chosen length, recorded one after another. Each track starts from its
+// first bar. Between two tracks the vine is rested and rerolled: a new seed, key and mode, and unless
+// kept, a new tempo and colour. Each track is a folder of its own, with its settings beside the WAV.
+let tracksRunning = false;
+let pieceStop = null;
+let passing = false;
+// Opens a saved recording's folder on the Mac, once per saved track.
+function revealRecording(id) {
+  fetch('/__tangerine__/recordings/reveal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }).catch(() => {});
+}
+
+// Pass this one: the take in progress is thrown away and the next seed starts, the same track again.
+function passTrack() {
+  if (!tracksRunning || !pieceStop) return;
+  passing = true;
+  pieceStop();
+}
+async function recordTracks(recorder, minutes, { intro = 0, outro = 0, tracks = 1, keepTempo = true, keepColour = true, makeVideo = false } = {}) {
+  if (audio.recording) throw new Error('Stop the memory recording first.');
+  await audio._ensure();
+  await banked;
+  tracksRunning = true;
+  try {
+    let track = 1;
+    let rerolled = false;
+    while (track <= tracks && tracksRunning) {
+      if (track > 1 || rerolled) await rerollTrack({ keepTempo, keepColour });
+      rerolled = false;
+      const outcome = await recordTrack(recorder, minutes, { intro, outro, track, tracks, makeVideo });
+      if (outcome === 'passed') { rerolled = true; continue; }
+      track++;
+    }
+  } finally {
+    tracksRunning = false;
+  }
+}
+
+// One track, from its first bar, until its length is reached (or the user stops).
+async function recordTrack(recorder, minutes, { intro, outro, track, tracks, makeVideo = false }) {
+  if (audio.playing) {
+    await audio.pause();
+    if (startedAt) elapsed += (performance.now() - startedAt) / 1000;
+    startedAt = null;
+    renderTransport();
+  }
+  await applyColourLimits();
+  if (audio.graph) audio.graph.releaseAll(audio.currentTime);
+  audio.setSeed(settings.seed);
+  audio.renewGraph();
+  resetDisplay();
+  // The notes of the last track are not carried into this one.
+  if (audio.graph) audio.graph.feed.length = 0;
+  elapsed = 0;
+  const plan = piecePlan(minutes * 60, intro, outro);
+  passing = false;
+  const ended = new Promise((resolve) => { pieceStop = () => resolve('stopped'); recorder.onLimit = () => resolve('limit'); });
+  await recorder.start({ audio, seed: audio.seed, beforePlay: true, limitSeconds: minutes * 60, settings: timedNote(minutes, plan, track, tracks) });
+  const palette = pickPalette();
+  const film = makeVideo ? new VerticalFilm({ audio, sid: recorder.session, palette, base: `Vertical_${palette.id}`, colourOf: (layer) => COLORS[layer] || palette.ink, frame: filmState }) : null;
+  if (film) await film.start();
+  if (plan.intro) audio.setStage([plan.order[0]]);
+  await toggle();
+  stageTimer = setInterval(() => stagePiece(recorder, plan), 100);
+  await ended;
+  pieceStop = null;
+  recorder.onLimit = null;
+  stopStaging();
+  if (film) {
+    try { await film.stop(); } catch (error) { notify(`The film could not be saved: ${error.message}`); }
+  }
+  const passed = passing;
+  passing = false;
+  if (passed) await recorder.discard();
+  else if (recorder.session && recorder.state === 'saved') revealRecording(recorder.session);
+  if (audio.playing) {
+    await audio.pause();
+    startedAt = null;
+    renderTransport();
+  }
+  return passed ? 'passed' : 'done';
+}
+
+// What a film shows at this moment: the playback time, the notes, the chord marks and the cards.
+function filmState() {
+  const journey = $('journey');
+  const title = journey.querySelector('strong')?.textContent || '';
+  return {
+    now: audio.currentTime,
+    feed: audio.feed,
+    marks,
+    chord: $('chordName').textContent,
+    key: $('vineKey').textContent,
+    tempo: settings.global.bpm,
+    title,
+    body: journey.textContent.slice(title.length).trim(),
+  };
+}
+
+// A new track: a new seed and harmony (the Random button's draw), then a tempo and a colour unless kept.
+async function rerollTrack({ keepTempo, keepColour }) {
+  const key = drawHarmony();
+  settings.engine.key = key;
+  settings.seed = (Math.random() * 4294967296) >>> 0;
+  settings.salt = 0;
+  audio.setEngine({ key, salt: 0 });
+  if (!keepTempo) {
+    settings.global.bpm = 50 + Math.floor(Math.random() * 41);
+    audio.setGlobal({ bpm: settings.global.bpm });
+  }
+  if (!keepColour) {
+    const names = Object.keys(COLOURS).filter((name) => name !== 'synth');
+    applyColour(names[Math.floor(Math.random() * names.length)]);
+  }
+  renderKeyReadout();
+  renderControls();
+  persist();
+}
+
+// The note written beside each track's WAV: its settings at the start, with the seed.
+function timedNote(minutes, plan, track, tracks) {
+  return [
+    `Tangerine II ${VERSION}`,
+    `Track ${track} of ${tracks}. Recorded from the beginning, for ${minutes} min, then stopped by itself.`,
+    `Intro ${Math.round(plan.intro)} s: the layers come in one by one (${plan.order.join(', ')}). Outro ${Math.round(plan.outro)} s: they leave one by one until one is left.`,
+    `Colour: ${COLOURS[settings.colour].label}. Seed ${audio.seed}. Same seed, colour and settings give the same track.`,
+    'Settings at the start (changes made during the recording are not in this note):',
+    JSON.stringify(snapshot(), null, 2),
+  ].join('\n');
+}
+
+// Intro and outro of a whole piece. Intro: the layers that play at the start come in one by
+// one, in an order of their own (from the seed), until all of them sound. Outro: they leave
+// one by one, without the volume going down, until one is left; it stops with the piece.
+let stageTimer = null;
+function piecePlan(total, intro, outro) {
+  const random = mulberry32(hashSeed(audio.seed, 'whole piece'));
+  const shuffle = (ids) => ids.map((id) => [random(), id]).sort((a, b) => a[0] - b[0]).map(([, id]) => id);
+  intro = Math.max(0, Math.min(intro, total / 3));
+  outro = Math.max(0, Math.min(outro, total / 3));
+  const order = shuffle(LAYER_IDS.filter((id) => settings.layers[id].on));
+  // Entries: the first layer at once, the others at uneven moments across the intro.
+  const entries = order.map((_, i) => (i === 0 ? 0 : intro * (i - 0.5 + random()) / Math.max(1, order.length - 1)));
+  entries.sort((a, b) => a - b);
+  return { total, intro, outro, order, entries, leaving: null, exits: [], random, shuffle };
+}
+function stagePiece(recorder, plan) {
+  if (!recorder.active || !audio.graph) { stopStaging(); return; }
+  const t = recorder.seconds;
+  if (plan.intro && !plan.introDone) {
+    const count = plan.entries.filter((at) => at <= t).length;
+    if (t >= plan.intro) { plan.introDone = true; audio.setStage(null); }
+    else if (count !== plan.entered) { plan.entered = count; audio.setStage(plan.order.slice(0, count)); }
+  }
+  if (plan.outro && t >= plan.total - plan.outro) {
+    if (!plan.leaving) {
+      // Those sounding now leave; a held layer (pad, drone, high strings) stays last when one sounds.
+      const sounding = plan.shuffle(LAYER_IDS.filter((id) => audio.graph.audible(id)));
+      const held = sounding.filter((id) => HOLD_IDS.includes(id));
+      const last = held.length ? held[0] : sounding[0];
+      plan.leaving = [last, ...sounding.filter((id) => id !== last)];
+      plan.exits = plan.leaving.slice(1).map((_, i, all) => plan.total - plan.outro + plan.outro * 0.85 * (i + 0.5 + 0.4 * (plan.random() - 0.5)) / all.length);
+      plan.left = -1;
+    }
+    const gone = plan.exits.filter((at) => at <= t).length;
+    if (gone !== plan.left) { plan.left = gone; audio.setStage(plan.leaving.slice(0, plan.leaving.length - gone), 1.5); }
+  }
+}
+function stopStaging() {
+  clearInterval(stageTimer);
+  stageTimer = null;
+  if (audio.stage) audio.setStage(null);
+}
+
 
 $('recordPassageButton').addEventListener('click', async () => {
   try {
@@ -922,6 +1166,7 @@ $('setupFile').addEventListener('change', async (event) => {
     audio = new TangerineAudio({ seed: settings.seed, engine: { ...settings.engine, key: { ...settings.engine.key }, salt: settings.salt }, layers: settings.layers, global: settings.global });
     audio.on(onVisual);
     audio.on(onThreadEnd);
+    applyColourLimits();
     if (old.ctx) setTimeout(() => old.ctx.close(), 600);
     trail = []; marks = []; travelling = null;
     renderTrail();
@@ -948,10 +1193,6 @@ $('aboutDone').addEventListener('click', () => $('about').close());
 function frame() {
   const seconds = elapsed + (startedAt ? (performance.now() - startedAt) / 1000 : 0);
   $('elapsed').textContent = time(seconds);
-  if (settings.form.thread) {
-    const p = audio.threadProgress;
-    $('threadFill').style.width = p ? `${(100 * Math.max(0, currentStep()) / p.total).toFixed(2)}%` : '0%';
-  }
   const heard = audio.heardSeconds;
   $('heardReadout').textContent = heard < 1 ? 'NOTHING YET' : heard >= KEEP_SECONDS - 1 ? 'LAST 20 MIN' : `${time(heard)} HEARD`;
   if (audio.recording && audio.recordingSeconds >= RECORD_LIMIT && !stopping) {
@@ -988,17 +1229,83 @@ function drawHelix(now) {
   for (let i = 2; i < 24; i += 2) {
     const [x1, y] = at(i, 0);
     const [x2] = at(i, Math.PI);
-    rungs += `<line x1="${x1.toFixed(2)}" y1="${y.toFixed(2)}" x2="${x2.toFixed(2)}" y2="${y.toFixed(2)}" stroke="#14100c" stroke-width="1" opacity=".38"/>`;
+    rungs += `<line x1="${x1.toFixed(2)}" y1="${y.toFixed(2)}" x2="${x2.toFixed(2)}" y2="${y.toFixed(2)}" stroke="#0b1216" stroke-width="1" opacity=".38"/>`;
   }
-  $('helix').innerHTML = `${rungs}<polyline points="${strand(0)}" fill="none" stroke="#14100c" stroke-width="1.6" stroke-linecap="round" opacity=".7"/><polyline points="${strand(Math.PI)}" fill="none" stroke="#fff3df" stroke-width="1.3" stroke-linecap="round" opacity=".55"/>`;
+  $('helix').innerHTML = `${rungs}<polyline points="${strand(0)}" fill="none" stroke="#0b1216" stroke-width="1.6" stroke-linecap="round" opacity=".7"/><polyline points="${strand(Math.PI)}" fill="none" stroke="#e5f9f1" stroke-width="1.3" stroke-linecap="round" opacity=".55"/>`;
 }
+
+// ---------------------------------------------------------------- colours (Tangerine II)
+//
+// A colour picks each layer's sound (samples when installed, synths otherwise),
+// a real reverberation for the vast room, and suggests reverb and tempo.
+
+function soundOptions(id) {
+  return Object.entries(SOUNDS[id]).filter(([, sound]) => !sound.sample || BANK.known(sound.sample))
+    .map(([value, sound]) => `<option value="${value}">${sound.label}</option>`).join('');
+}
+async function applyColourLimits() {
+  const name = settings.colour;
+  const pools = Object.fromEntries(LAYER_IDS.map((id) => [id, colourPool(name, id, SOUNDS)]).filter(([, pool]) => pool));
+  audio.setColour({ pools: Object.keys(pools).length ? pools : null, space: audio.colour.space });
+  // The colour's samples are decoded now (each once), and its real space with them.
+  const space = await colourSpace(name);
+  if (settings.colour === name) audio.setColour({ pools: audio.colour.pools, space });
+  const loads = colourSamples(name).filter((sample) => BANK.known(sample)).map((sample) => BANK.require(sample));
+  for (const id of LAYER_IDS) { const sound = SOUNDS[id][settings.layers[id].sound]; if (sound?.sample) loads.push(BANK.require(sound.sample)); }
+  await Promise.all(loads);
+}
+function renderColour() {
+  const colour = COLOURS[settings.colour];
+  $('colour').value = settings.colour;
+  $('colourReadout').textContent = colour.label.split(' · ')[0].toUpperCase();
+  const missing = LAYER_IDS.filter((id) => (colour.layers[id] || []).some((n) => n.startsWith('s:')) && !colourSound(settings.colour, id, SOUNDS)?.startsWith('s:'));
+  const waiting = colourSamples(settings.colour).filter((n) => BANK.known(n) && !BANK.has(n)).length;
+  const samples = BANK.status === 'loading' ? 'Looking for samples…' : `${BANK.message}${waiting ? ` Loading ${waiting} sample instrument${waiting === 1 ? '' : 's'}…` : ''}`;
+  $('colourNote').textContent = `${colour.note} ${samples}${missing.length && settings.colour !== 'synth' ? ` Synthesized for now: ${missing.map((id) => cards[id].def.name).join(', ')}.` : ''}`;
+}
+function applyColour(name) {
+  settings.colour = name;
+  const colour = COLOURS[name];
+  for (const id of LAYER_IDS) {
+    const sound = colourSound(name, id, SOUNDS) || (name === 'synth' ? DEFAULT_LAYERS[id].sound : null);
+    if (sound && sound !== settings.layers[id].sound) { settings.layers[id].sound = sound; audio.setLayer(id, { sound }); }
+  }
+  if (colour.global) { Object.assign(settings.global, colour.global); audio.setGlobal(colour.global); }
+  applyColourLimits();
+  LAYER_IDS.forEach(renderLayer);
+  renderControls();
+  syncThreadLength();
+  renderColour();
+  persist();
+}
+$('colour').innerHTML = Object.entries(COLOURS).map(([value, c]) => `<option value="${value}">${c.label}</option>`).join('');
+$('colour').addEventListener('change', (e) => { applyColour(e.target.value); notify(`Colour: ${COLOURS[e.target.value].label}.`); });
 
 LAYER_IDS.forEach(renderLayer);
 renderControls();
+renderColour();
+// A sample instrument just decoded: held layers take it up, the note says so.
+BANK.on(() => {
+  if (audio.graph && audio.playing) audio.graph.refreshHolds();
+  renderColour();
+});
+const banked = BANK.load().then(() => {
+  for (const [name, entry] of Object.entries(BANK.index.instruments)) for (const id of LAYER_IDS) SOUNDS[id][sampledKey(name)] = sampledSound(name, entry, id);
+  for (const id of LAYER_IDS) {
+    const select = cards[id].card.querySelector('[data-field="sound"]');
+    select.innerHTML = soundOptions(id);
+    // A saved sampled sound whose folder is gone: back to the layer's usual sound.
+    if (!select.querySelector(`option[value="${CSS.escape(settings.layers[id].sound)}"]`)) { settings.layers[id].sound = DEFAULT_LAYERS[id].sound; audio.setLayer(id, { sound: settings.layers[id].sound }); }
+  }
+  applyColourLimits();
+  LAYER_IDS.forEach(renderLayer);
+  renderColour();
+});
 renderKeyReadout();
 renderSolo();
 requestAnimationFrame(frame);
 window.tangerine = { get audio() { return audio; }, get settings() { return settings; } };
 
-const studio = initStudio({ getAudio: () => audio, notify });
+setInterval(renderDrift, 400);
+const studio = initStudio({ getAudio: () => audio, notify, recordTracks, passTrack });
 window.tangerine.diskRecorder = studio.recorder;

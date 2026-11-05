@@ -72,4 +72,25 @@ class RecordingTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.store.append(self.info['id'], 1, self.pcm(20))
 
 
+class SettingsNoteTests(unittest.TestCase):
+    def test_settings_note_is_written_beside_the_wav(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = module.RecordingStore(tmp)
+            info = store.start(8000, 'tangerine', 7, 'Seed 7\n{"a": 1}')
+            note = Path(info['folder']) / 'reglages.txt'
+            self.assertEqual(note.read_text(encoding='utf-8'), 'Seed 7\n{"a": 1}')
+            with self.assertRaises(ValueError): store.start(8000, 'tangerine', 7, 42)
+            store.close()
+
+    def test_open_folder_only_reaches_folders_the_store_made(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = module.RecordingStore(Path(tmp) / 'Recordings')
+            self.assertEqual(store.reveal_path(), Path(tmp) / 'Recordings')
+            info = store.start(8000, 'tangerine', 7)
+            self.assertEqual(store.reveal_path(info['id']), Path(info['folder']))
+            with self.assertRaises(KeyError): store.reveal_path('../..')
+            with self.assertRaises(KeyError): store.reveal_path(12)
+            store.close()
+
+
 if __name__ == '__main__': unittest.main()
