@@ -115,8 +115,8 @@
     <span class="eyebrow">FROM THE BEGINNING</span>
     <h3>Record a whole piece</h3>
     <p>Restarts the vine from its first bar, with the same seed and settings, and records from the first sound until the chosen length. Then it stops by itself.</p>
-    <label class="slider-label" for="timedMinutes"><span>Length</span><output id="timedMinutesValue">2 h</output></label>
-    <input id="timedMinutes" type="range" min="1" max="120" step="1" value="120">
+    <label class="slider-label" for="timedMinutes"><span>Length</span><output id="timedMinutesValue">2 min</output></label>
+    <input id="timedMinutes" type="range" min="1" max="120" step="1" value="2">
     <label class="slider-label" for="timedIntro"><span>Intro · layers come in one by one</span><output id="timedIntroValue">10 s</output></label>
     <input id="timedIntro" type="range" min="0" max="120" step="5" value="10">
     <label class="slider-label" for="timedOutro"><span>Outro · layers leave one by one</span><output id="timedOutroValue">20 s</output></label>
@@ -128,7 +128,7 @@
     <label class="check-line"><input id="makeVideo" type="checkbox"> Make a video (vertical, for posting)</label>
     <p class="capture-help">Between two tracks: a new seed, a new key and mode, and unless ticked, a new tempo and colour. Each track is a folder of its own.</p>
     <p class="capture-help" id="timedSize"></p>
-    <button id="timedRecord" class="record-button disk-record" type="button"><svg aria-hidden="true"><use href="#record"/></svg><span id="timedText">Start from the beginning and record 2 h</span></button>
+    <button id="timedRecord" class="record-button disk-record" type="button"><svg aria-hidden="true"><use href="#record"/></svg><span id="timedText">Start from the beginning and record 2 min</span></button>
     <button class="text-action open-folder" type="button">Open the Recordings folder ↗</button>
     <p class="capture-help">The settings and the seed are saved beside the WAV files. Do not change a setting while it records: it would change the piece.</p>
   </div>
@@ -155,7 +155,7 @@
 
 </section></aside>
     </div>
-    <footer class="app-footer"><span>TANGERINE II <span class="slash">/</span> REAL INSTRUMENTS <span class="app-version">v2.1 · Made with Claude · SEED <span id="seedValue"></span></span></span><div><a class="previous-version" href="./versions/v1.2.0/">Previous version · 1.2 ↗</a></div><span class="shortcut-note"><kbd>space</kbd> to play / pause</span></footer>
+    <footer class="app-footer"><span>TANGERINE II <span class="slash">/</span> REAL INSTRUMENTS <span class="app-version">v2.1 · SEED <span id="seedValue"></span></span></span><div><a class="previous-version" href="./versions/v1.2.0/">Previous version · 1.2 ↗</a></div><span class="shortcut-note"><kbd>space</kbd> to play / pause</span></footer>
   </main>
 
   </div>

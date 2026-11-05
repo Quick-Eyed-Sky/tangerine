@@ -25,10 +25,28 @@ export function pickPalette() {
   return lastPalette;
 }
 
-// Draws one frame. `s` carries what the film shows: the playback time, the notes, the chord
-// marks, the chord and key names, the tempo and the journey card (title and text).
-export function drawVerticalFrame(g, s) {
-  const { palette: p } = s;
+// The pitch window follows the notes: three octaves, centred on what has just been played.
+let centre = null;
+export function resetFilm() { centre = null; }
+
+// Draws one frame, laid out like the interface: time runs left to right, toward the now line,
+// and the pitch is spread over three octaves. The chords are listed in a row at the bottom.
+// The held layers (pad, drone, air) log a list of pitches at each change: each pitch becomes a
+// note that lasts until the next change of its layer.
+function expandFeed(feed, now) {
+  const notes = [];
+  feed.forEach((entry, i) => {
+    if (!Array.isArray(entry.midi)) { notes.push(entry); return; }
+    const next = feed.find((other, j) => j > i && other.layer === entry.layer);
+    const length = (next ? next.t : now) - entry.t;
+    for (const midi of entry.midi) notes.push({ layer: entry.layer, midi, t: entry.t, length });
+  });
+  return notes;
+}
+
+export function drawVerticalFrame(g, source) {
+  const { palette: p } = source;
+  const s = { ...source, feed: expandFeed(source.feed, source.now) };
   const W = FILM_W, H = FILM_H;
   const grad = g.createLinearGradient(0, 0, 0, H);
   grad.addColorStop(0, p.bg0);
@@ -37,14 +55,12 @@ export function drawVerticalFrame(g, s) {
   g.fillRect(0, 0, W, H);
 
   const margin = 80;
-  const pitchX = (midi) => margin + (Math.min(100, Math.max(28, midi)) - 28) / 72 * (W - 2 * margin);
-  const rollTop = 620, nowY = 1640, pxPerSecond = 120;
-  const yOf = (t) => nowY - (s.now - t) * pxPerSecond;
+  const sans = '-apple-system, Helvetica, Arial, sans-serif';
 
-  // Header.
+  // Header: the chord, the key and the tempo, then the journey card.
   g.fillStyle = p.ink;
   g.globalAlpha = 0.6;
-  g.font = '600 34px -apple-system, Helvetica, Arial, sans-serif';
+  g.font = `600 34px ${sans}`;
   g.fillText('TANGERINE II', margin, 110);
   g.globalAlpha = 1;
   let chordSize = 170;
@@ -56,64 +72,113 @@ export function drawVerticalFrame(g, s) {
   }
   g.fillText(chord, margin, 320);
   g.fillStyle = p.accent;
-  g.font = '600 46px -apple-system, Helvetica, Arial, sans-serif';
+  g.font = `600 46px ${sans}`;
   g.fillText(`${s.key || ''}   ♩ ${s.tempo} bpm`, margin, 396);
-
-  // The journey card: neighbour key or shared chord.
   if (s.title) {
-    g.font = '600 30px -apple-system, Helvetica, Arial, sans-serif';
+    g.font = `600 30px ${sans}`;
     g.fillText(s.title, margin, 470);
     g.fillStyle = p.ink;
-    g.font = '400 36px -apple-system, Helvetica, Arial, sans-serif';
+    g.font = `400 36px ${sans}`;
     wrap(g, s.body || '', margin, 524, W - 2 * margin, 46, 2);
   }
 
-  // The roll: time climbs from the bottom line, pitch runs across.
+  // The roll: the same window as the interface, nine seconds, the now line at 90 per cent.
+  const top = 660, bottom = 1520, nowX = W * 0.9, px = nowX / 9;
+  const xOf = (t) => nowX - (s.now - t) * px;
+  const recent = s.feed.filter((n) => n.t <= s.now && n.t > s.now - 9 && !(n.layer === 'bells'));
+  if (recent.length) {
+    const mean = recent.reduce((sum, n) => sum + n.midi, 0) / recent.length;
+    centre = centre === null ? mean : centre + (mean - centre) * 0.04;
+  } else if (centre === null) {
+    centre = 60;
+  }
+  const low = centre - 18, span = 36;
+  const yOf = (midi) => bottom - (Math.min(low + span, Math.max(low, midi)) - low) / span * (bottom - top);
+
   g.strokeStyle = p.ink;
-  g.globalAlpha = 0.08;
-  for (let midi = 36; midi <= 96; midi += 12) {
-    g.beginPath(); g.moveTo(pitchX(midi), rollTop); g.lineTo(pitchX(midi), nowY); g.stroke();
+  g.lineWidth = 1;
+  for (let midi = Math.ceil(low / 12) * 12; midi <= low + span; midi += 12) {
+    g.globalAlpha = 0.12;
+    g.beginPath(); g.moveTo(margin, yOf(midi) + 0.5); g.lineTo(nowX, yOf(midi) + 0.5); g.stroke();
   }
   g.globalAlpha = 1;
 
   for (const mark of s.marks) {
-    const y = yOf(mark.t);
-    if (y < rollTop || y > nowY) continue;
+    const x = xOf(mark.t);
+    if (x < margin || x > nowX) continue;
     g.strokeStyle = mark.modulation ? p.accent : p.ink;
     g.globalAlpha = mark.modulation ? 0.9 : 0.3;
-    g.beginPath(); g.moveTo(margin, y + 0.5); g.lineTo(W - margin, y + 0.5); g.stroke();
+    g.beginPath(); g.moveTo(x + 0.5, top); g.lineTo(x + 0.5, bottom); g.stroke();
     g.globalAlpha = 0.75;
     g.fillStyle = mark.modulation ? p.accent : p.ink;
-    g.font = '500 28px -apple-system, Helvetica, Arial, sans-serif';
-    g.fillText(mark.name, margin, y - 8);
+    g.font = `500 28px ${sans}`;
+    g.fillText(mark.name, x + 8, top + 34);
     g.globalAlpha = 1;
   }
 
   for (const note of s.feed) {
     if (note.t > s.now) continue;
-    const y = yOf(note.t);
-    if (y < rollTop - 40 || y > nowY) continue;
-    const x = pitchX(note.midi);
-    const length = Math.max(0.06, Math.min(note.length || 0.2, s.now - note.t));
-    const top = Math.max(rollTop, yOf(note.t + length));
+    const x = xOf(note.t);
+    if (x < margin - 20 || x > nowX) continue;
+    const y = yOf(note.midi);
     g.fillStyle = s.colourOf(note.layer);
     g.globalAlpha = 0.85;
     if (note.layer === 'bells') {
       g.beginPath(); g.arc(x, y, 9, 0, Math.PI * 2); g.fill();
     } else {
-      g.fillRect(x - 16, top, 32, Math.max(8, y - top));
+      const length = Math.max(0.06, Math.min(note.length || 0.2, s.now - note.t));
+      g.fillRect(x, y - 6, Math.max(8, length * px), 12);
     }
     g.globalAlpha = 1;
   }
 
   g.fillStyle = p.accent;
-  g.fillRect(margin, nowY, W - 2 * margin, 4);
+  g.fillRect(nowX - 2, top, 4, bottom - top);
 
-  g.fillStyle = p.ink;
-  g.globalAlpha = 0.5;
-  g.font = '500 28px -apple-system, Helvetica, Arial, sans-serif';
-  g.fillText('Made with Tangerine II · Claude', margin, H - 70);
-  g.globalAlpha = 1;
+  // The chords, as in the interface: the latest one filled, the others outlined.
+  const names = s.marks.slice(-8);
+  g.font = `500 34px ${sans}`;
+  const pills = [];
+  let width = 0;
+  for (let i = names.length - 1; i >= 0; i--) {
+    const w = g.measureText(names[i].name).width + 56;
+    if (width + w > W - 2 * margin) break;
+    width += w + 16;
+    pills.unshift({ ...names[i], w });
+  }
+  let x = margin;
+  const y = 1640, h = 80;
+  pills.forEach((pill, i) => {
+    const current = i === pills.length - 1;
+    pillPath(g, x, y, pill.w, h);
+    if (current) {
+      g.fillStyle = p.accent;
+      g.fill();
+      g.fillStyle = p.bg1;
+    } else {
+      g.strokeStyle = p.ink;
+      g.globalAlpha = 0.35;
+      g.lineWidth = 2;
+      g.stroke();
+      g.globalAlpha = 1;
+      g.fillStyle = p.ink;
+    }
+    g.textBaseline = 'middle';
+    g.fillText(pill.name, x + 28, y + h / 2 + 2);
+    g.textBaseline = 'alphabetic';
+    x += pill.w + 16;
+  });
+}
+
+function pillPath(g, x, y, w, h) {
+  const r = h / 2;
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.lineTo(x + w - r, y);
+  g.arc(x + w - r, y + r, r, -Math.PI / 2, Math.PI / 2);
+  g.lineTo(x + r, y + h);
+  g.arc(x + r, y + r, r, Math.PI / 2, -Math.PI / 2);
+  g.closePath();
 }
 
 function wrap(g, text, x, y, width, lineHeight, maxLines) {
@@ -155,6 +220,7 @@ export class VerticalFilm {
   }
 
   async start() {
+    resetFilm();
     const mime = VerticalFilm.mimeType();
     if (!mime) throw new Error('This browser cannot record video.');
     this.name = `${this.base}.${mime.startsWith('video/mp4') ? 'mp4' : 'webm'}`;

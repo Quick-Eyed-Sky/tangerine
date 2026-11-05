@@ -934,6 +934,8 @@ async function recordTrack(recorder, minutes, { intro, outro, track, tracks, mak
   if (audio.graph) audio.graph.releaseAll(audio.currentTime);
   audio.setSeed(settings.seed);
   resetDisplay();
+  // The notes of the last track are not carried into this one.
+  if (audio.graph) audio.graph.feed.length = 0;
   elapsed = 0;
   const plan = piecePlan(minutes * 60, intro, outro);
   const ended = new Promise((resolve) => { pieceStop = resolve; recorder.onLimit = resolve; });
