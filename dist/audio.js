@@ -968,6 +968,23 @@ export class TangerineAudio {
   on(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   _emit(item) { for (const listener of this.listeners) listener(item); }
 
+  // A fresh graph for a new track: the reverb, the echoes and the held notes of the last one are
+  // left behind, not played at the start of the next recording. The old graph is cut off.
+  renewGraph() {
+    if (!this.ctx || !this.graph) return;
+    const old = this.graph;
+    this.graph = new Graph(this.ctx, { seed: this.seed, layers: this.layers, global: this.global });
+    this.graph.solo = this.solo;
+    this.graph.journal = this.journal;
+    this.graph.midiOut = this.midiOut;
+    this.graph.midiOnly = this.midiOnly;
+    this.graph.pools = this.colour.pools;
+    this.graph.setSpace(this.colour.space);
+    this.graph.applyAll(true);
+    if (this.captureNode) this.graph.out.connect(this.captureNode);
+    try { old.out.disconnect(); } catch { /* Already cut off. */ }
+  }
+
   async _ensure() {
     if (this.ctx) return;
     const Context = window.AudioContext || window.webkitAudioContext;
@@ -986,6 +1003,7 @@ export class TangerineAudio {
       const node = new AudioWorkletNode(this.ctx, 'tangerine-capture', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2], channelCount: 2, channelCountMode: 'explicit' });
       const silent = this.ctx.createGain();
       silent.gain.value = 0;
+      this.captureNode = node;
       this.graph.out.connect(node);
       node.connect(silent);
       silent.connect(this.ctx.destination);

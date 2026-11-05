@@ -952,6 +952,7 @@ async function recordTrack(recorder, minutes, { intro, outro, track, tracks, mak
   await applyColourLimits();
   if (audio.graph) audio.graph.releaseAll(audio.currentTime);
   audio.setSeed(settings.seed);
+  audio.renewGraph();
   resetDisplay();
   // The notes of the last track are not carried into this one.
   if (audio.graph) audio.graph.feed.length = 0;
