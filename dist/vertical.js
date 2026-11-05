@@ -61,9 +61,10 @@ export function drawVerticalFrame(g, source) {
   g.fillStyle = p.ink;
   g.globalAlpha = 0.6;
   g.font = `600 34px ${sans}`;
-  g.fillText('TANGERINE II', margin, 110);
+  g.font = `600 36px ${sans}`;
+  g.fillText('Tangerine II: Sequences & Modulations', margin, 110);
   g.globalAlpha = 1;
-  let chordSize = 170;
+  let chordSize = 128;
   const chord = s.chord || '—';
   g.font = `600 ${chordSize}px Georgia, "Times New Roman", serif`;
   while (chordSize > 70 && g.measureText(chord).width > W - 2 * margin) {
@@ -72,14 +73,14 @@ export function drawVerticalFrame(g, source) {
   }
   g.fillText(chord, margin, 320);
   g.fillStyle = p.accent;
-  g.font = `600 46px ${sans}`;
+  g.font = `600 40px ${sans}`;
   g.fillText(`${s.key || ''}   ♩ ${s.tempo} bpm`, margin, 396);
   if (s.title) {
-    g.font = `600 30px ${sans}`;
-    g.fillText(s.title, margin, 470);
+    g.font = `600 24px ${sans}`;
+    g.fillText(s.title, margin, 466);
     g.fillStyle = p.ink;
-    g.font = `400 36px ${sans}`;
-    wrap(g, s.body || '', margin, 524, W - 2 * margin, 46, 2);
+    g.font = `400 30px ${sans}`;
+    wrap(g, s.body || '', margin, 508, W - 2 * margin, 40, 2);
   }
 
   // The roll: the same window as the interface, nine seconds, the now line at 90 per cent.
@@ -103,16 +104,22 @@ export function drawVerticalFrame(g, source) {
   }
   g.globalAlpha = 1;
 
+  let labelEnd = -Infinity;
   for (const mark of s.marks) {
     const x = xOf(mark.t);
     if (x < margin || x > nowX) continue;
     g.strokeStyle = mark.modulation ? p.accent : p.ink;
     g.globalAlpha = mark.modulation ? 0.9 : 0.3;
     g.beginPath(); g.moveTo(x + 0.5, top); g.lineTo(x + 0.5, bottom); g.stroke();
-    g.globalAlpha = 0.75;
-    g.fillStyle = mark.modulation ? p.accent : p.ink;
-    g.font = `500 28px ${sans}`;
-    g.fillText(mark.name, x + 8, top + 34);
+    g.font = `500 26px ${sans}`;
+    const width = g.measureText(mark.name).width;
+    // A label that would run into the one before it is left out; its line stays.
+    if (x + 8 > labelEnd + 14) {
+      g.globalAlpha = 0.75;
+      g.fillStyle = mark.modulation ? p.accent : p.ink;
+      g.fillText(mark.name, x + 8, top + 34);
+      labelEnd = x + 8 + width;
+    }
     g.globalAlpha = 1;
   }
 
@@ -132,16 +139,14 @@ export function drawVerticalFrame(g, source) {
     g.globalAlpha = 1;
   }
 
-  g.fillStyle = p.accent;
-  g.fillRect(nowX - 2, top, 4, bottom - top);
-
   // The chords, as in the interface: the latest one filled, the others outlined.
   const names = s.marks.slice(-8);
-  g.font = `500 34px ${sans}`;
+  const pillFont = `500 30px ${sans}, "Arial Unicode MS", "Apple Symbols"`;
+  g.font = pillFont;
   const pills = [];
   let width = 0;
   for (let i = names.length - 1; i >= 0; i--) {
-    const w = g.measureText(names[i].name).width + 56;
+    const w = g.measureText(names[i].name).width + 52;
     if (width + w > W - 2 * margin) break;
     width += w + 16;
     pills.unshift({ ...names[i], w });
@@ -164,7 +169,8 @@ export function drawVerticalFrame(g, source) {
       g.fillStyle = p.ink;
     }
     g.textBaseline = 'middle';
-    g.fillText(pill.name, x + 28, y + h / 2 + 2);
+    g.font = pillFont;
+    g.fillText(pill.name, x + 26, y + h / 2 + 2);
     g.textBaseline = 'alphabetic';
     x += pill.w + 16;
   });
