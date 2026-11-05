@@ -2,6 +2,7 @@
 from datetime import datetime
 import hashlib
 import re
+import shutil
 import json
 import os
 from pathlib import Path
@@ -116,6 +117,18 @@ class RecordingStore:
             else:
                 raise ValueError('Film out of order.')
             return {"name": name, "sequence": sequence}
+
+    def discard(self, sid):
+        """Throw away a recording made by this store: its folder and its files, nothing else."""
+        with self.lock:
+            s = self.sessions.get(sid)
+            if s is None:
+                raise KeyError(sid)
+            if not s['closed']:
+                self.stop(sid)
+            shutil.rmtree(self.folder / sid)
+            del self.sessions[sid]
+            return {"discarded": sid}
 
     def stop(self, sid):
         with self.lock:

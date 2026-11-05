@@ -138,6 +138,15 @@ export class DiskRecorder {
     await this.cleanup();
     this.state = this.error ? 'error' : 'saved'; this.changed();
   }
+  // Throws the take away: stopped, then its folder is removed on the server.
+  async discard() {
+    await this.stop();
+    if (this.session) {
+      try { await request(`/${this.session}/discard`, {}); } catch (error) { this.error ||= error; }
+    }
+    this.files = []; this.session = null; this.folder = null;
+    this.state = 'idle'; this.changed();
+  }
   async cleanup() {
     try { this.output?.disconnect(this.tap); } catch { /* A context may already be closed. */ }
     this.output = null; this.tap = null;

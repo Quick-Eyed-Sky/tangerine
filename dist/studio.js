@@ -1,6 +1,6 @@
 import { DiskRecorder } from './disk-recorder.js';
 
-export function initStudio({ getAudio, notify, recordTracks }) {
+export function initStudio({ getAudio, notify, recordTracks, passTrack }) {
   const $ = (id) => document.getElementById(id);
   const duration = (seconds) => {
     const s = Math.max(0, Math.floor(seconds));
@@ -104,6 +104,7 @@ export function initStudio({ getAudio, notify, recordTracks }) {
     } catch (error) { notify(error.message || 'The folder could not be opened.'); }
   }));
   for (const slider of [timedSlider, $('timedIntro'), $('timedOutro'), $('timedTracks')]) slider.addEventListener('input', renderTimed);
+  $('passTrack').addEventListener('click', () => passTrack());
   $('timedRecord').addEventListener('click', async () => {
     try {
       await recordTracks(recorder, Number(timedSlider.value), {
@@ -117,6 +118,7 @@ export function initStudio({ getAudio, notify, recordTracks }) {
   renderTimed();
 
   function renderRecording() {
+    $('passTrack').hidden = !recorder.active;
     if (!available) {
       const active = !!getAudio().recording;
       $('quickRecord').disabled = false;

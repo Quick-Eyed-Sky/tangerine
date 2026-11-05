@@ -909,15 +909,31 @@ async function finishRecording() {
 // kept, a new tempo and colour. Each track is a folder of its own, with its settings beside the WAV.
 let tracksRunning = false;
 let pieceStop = null;
+let passing = false;
+// Pass this one: the take in progress is thrown away and the next seed starts, the same track again.
+function passTrack() {
+  if (!tracksRunning || !pieceStop) return;
+  passing = true;
+  pieceStop();
+}
 async function recordTracks(recorder, minutes, { intro = 0, outro = 0, tracks = 1, keepTempo = true, keepColour = true, makeVideo = false } = {}) {
   if (audio.recording) throw new Error('Stop the memory recording first.');
   await audio._ensure();
   await banked;
   tracksRunning = true;
   try {
-    for (let track = 1; track <= tracks && tracksRunning; track++) {
-      if (track > 1) await rerollTrack({ keepTempo, keepColour });
-      await recordTrack(recorder, minutes, { intro, outro, track, tracks, makeVideo });
+    let track = 1;
+    let rerolled = false;
+    while (track <= tracks && tracksRunning) {
+      if (track > 1 || rerolled) await rerollTrack({ keepTempo, keepColour });
+      rerolled = false;
+      const outcome = await recordTrack(recorder, minutes, { intro, outro, track, tracks, makeVideo });
+      if (outcome === 'passed') { rerolled = true; continue; }
+      track++;
+    }
+    // Once the batch is over, its last folder opens on the Mac: one window, not one per track.
+    if (recorder.session) {
+      fetch('/__tangerine__/recordings/reveal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: recorder.session }) }).catch(() => {});
     }
   } finally {
     tracksRunning = false;
@@ -940,7 +956,8 @@ async function recordTrack(recorder, minutes, { intro, outro, track, tracks, mak
   if (audio.graph) audio.graph.feed.length = 0;
   elapsed = 0;
   const plan = piecePlan(minutes * 60, intro, outro);
-  const ended = new Promise((resolve) => { pieceStop = resolve; recorder.onLimit = resolve; });
+  passing = false;
+  const ended = new Promise((resolve) => { pieceStop = () => resolve('stopped'); recorder.onLimit = () => resolve('limit'); });
   await recorder.start({ audio, seed: audio.seed, beforePlay: true, limitSeconds: minutes * 60, settings: timedNote(minutes, plan, track, tracks) });
   const palette = pickPalette();
   const film = makeVideo ? new VerticalFilm({ audio, sid: recorder.session, palette, base: `Vertical_${palette.id}`, colourOf: (layer) => COLORS[layer] || palette.ink, frame: filmState }) : null;
@@ -955,11 +972,15 @@ async function recordTrack(recorder, minutes, { intro, outro, track, tracks, mak
   if (film) {
     try { await film.stop(); } catch (error) { notify(`The film could not be saved: ${error.message}`); }
   }
+  const passed = passing;
+  passing = false;
+  if (passed) await recorder.discard();
   if (audio.playing) {
     await audio.pause();
     startedAt = null;
     renderTransport();
   }
+  return passed ? 'passed' : 'done';
 }
 
 // What a film shows at this moment: the playback time, the notes, the chord marks and the cards.
@@ -1283,5 +1304,5 @@ requestAnimationFrame(frame);
 window.tangerine = { get audio() { return audio; }, get settings() { return settings; } };
 
 setInterval(renderDrift, 400);
-const studio = initStudio({ getAudio: () => audio, notify, recordTracks });
+const studio = initStudio({ getAudio: () => audio, notify, recordTracks, passTrack });
 window.tangerine.diskRecorder = studio.recorder;
