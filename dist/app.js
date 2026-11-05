@@ -910,6 +910,11 @@ async function finishRecording() {
 let tracksRunning = false;
 let pieceStop = null;
 let passing = false;
+// Opens a saved recording's folder on the Mac, once per saved track.
+function revealRecording(id) {
+  fetch('/__tangerine__/recordings/reveal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }).catch(() => {});
+}
+
 // Pass this one: the take in progress is thrown away and the next seed starts, the same track again.
 function passTrack() {
   if (!tracksRunning || !pieceStop) return;
@@ -930,10 +935,6 @@ async function recordTracks(recorder, minutes, { intro = 0, outro = 0, tracks = 
       const outcome = await recordTrack(recorder, minutes, { intro, outro, track, tracks, makeVideo });
       if (outcome === 'passed') { rerolled = true; continue; }
       track++;
-    }
-    // Once the batch is over, its last folder opens on the Mac: one window, not one per track.
-    if (recorder.session) {
-      fetch('/__tangerine__/recordings/reveal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: recorder.session }) }).catch(() => {});
     }
   } finally {
     tracksRunning = false;
@@ -975,6 +976,7 @@ async function recordTrack(recorder, minutes, { intro, outro, track, tracks, mak
   const passed = passing;
   passing = false;
   if (passed) await recorder.discard();
+  else if (recorder.session && recorder.state === 'saved') revealRecording(recorder.session);
   if (audio.playing) {
     await audio.pause();
     startedAt = null;
