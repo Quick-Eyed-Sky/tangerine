@@ -69,7 +69,7 @@ const ROTATE = BAR_STEPS;
 // Bars between key changes: 0 never. A key change waits for a chord change, and a chord lasts 4 to 16 bars,
 // so two bars is already about one change per chord: the rate cannot go faster than the chords.
 const KEY_EVERY = [0, 32, 16, 8, 4, 2];
-const DEFAULT_ENGINE = { key: { tonic: 6, mode: 'lydian' }, complexity: 0.58, wander: 0.35, changes: 6, every: 16, pedal: 0.56, evolution: 1, renew: 32, recolor: 32, rotate: 32, lengths: { bass: 16, arp: 12, motif: 7, seq2: 10, pulse: 5 } };
+const DEFAULT_ENGINE = { key: { tonic: 6, mode: 'lydian' }, complexity: 0.58, wander: 0.35, changes: 6, every: 16, pedal: 0.56, evolution: 1, renew: 4, recolor: 4, rotate: 8, lengths: { bass: 16, arp: 12, motif: 7, seq2: 10, pulse: 5 } };
 const freshSettings = () => ({
   seed: (Math.random() * 4294967296) >>> 0,
   salt: 0,
@@ -102,6 +102,8 @@ function readSetup(value) {
     for (const l of Object.values(v.layers)) if (l?.delay && Number.isFinite(l.delay.feedback)) l.delay.feedback = Math.min(1, l.delay.feedback / ECHO_MAX);
   }
   if (v.version < 3) e.renew ||= DEFAULT_ENGINE.renew;
+  // Version 4: the new defaults for the three bar settings, once, for setups saved before.
+  if (v.version < 4) { e.renew = DEFAULT_ENGINE.renew; e.recolor = DEFAULT_ENGINE.recolor; e.rotate = DEFAULT_ENGINE.rotate; }
   // Key changes were a count per ten minutes; now they are bars between changes (the same rate at this tempo).
   if (e.every === undefined) e.every = e.changes > 0 ? nearestKeyEvery(((Number(g.bpm) || DEFAULT_GLOBAL.bpm) * 2.5) / e.changes) : 0;
   e.renew ??= DEFAULT_ENGINE.renew;
@@ -130,7 +132,7 @@ try {
   settings = readSetup(JSON.parse(localStorage.getItem(storageKey) || localStorage.getItem('tangerine.sol.setup.v1'))) || settings;
 } catch { /* A new journey is drawn. */ }
 
-const snapshot = () => ({ format: 'tangerine-setup', version: 3, app: VERSION, ...JSON.parse(JSON.stringify(settings)) });
+const snapshot = () => ({ format: 'tangerine-setup', version: 4, app: VERSION, ...JSON.parse(JSON.stringify(settings)) });
 let saveTimer;
 function persist() {
   clearTimeout(saveTimer);
