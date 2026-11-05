@@ -108,7 +108,7 @@ export function initStudio({ getAudio, notify, recordTracks }) {
     try {
       await recordTracks(recorder, Number(timedSlider.value), {
         intro: Number($('timedIntro').value), outro: Number($('timedOutro').value),
-        tracks: Number($('timedTracks').value), keepTempo: $('keepTempo').checked, keepColour: $('keepColour').checked,
+        tracks: Number($('timedTracks').value), keepTempo: $('keepTempo').checked, keepColour: $('keepColour').checked, makeVideo: $('makeVideo').checked,
       });
     }
     catch (error) { notify(error.message || 'The recording could not start.'); }
@@ -183,7 +183,7 @@ export function initStudio({ getAudio, notify, recordTracks }) {
     $('recordingPath').hidden = !available;
     $('diskFiles').hidden = !available;
     $('localDownload').hidden = available;
-    $('editionLabel').textContent = available ? 'TANGERINE II 2.0 · LOCAL' : 'TANGERINE II 2.0 · BROWSER';
+    $('editionLabel').textContent = available ? 'TANGERINE II 2.1 · LOCAL' : 'TANGERINE II 2.1 · BROWSER';
     $('diskTitle').textContent = available ? 'Record to this computer' : 'Keep a long session';
     $('diskIntro').textContent = available
       ? 'Everything from Record until Stop. Saved as WAV directly in the local Recordings folder.'

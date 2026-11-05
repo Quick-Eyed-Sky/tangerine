@@ -1,6 +1,6 @@
 # Tangerine II — guide local
 
-Tangerine II 2.0 joue la liane de Tangerine avec de vrais instruments échantillonnés (Mellotron, Fairlight, Moog, Prophet, Jupiter, Oberheim, Juno), choisis par **couleur**. Elle reprend aussi l'enregistrement d'une pièce entière de Tangerine Slides.
+Tangerine II 2.1 joue la liane de Tangerine avec de vrais instruments échantillonnés (Mellotron, Fairlight, Moog, Prophet, Jupiter, Oberheim, Juno), choisis par **couleur**. Elle reprend aussi l'enregistrement d'une pièce entière de Tangerine Slides.
 
 ## Lancer
 
@@ -32,5 +32,6 @@ Dans **The colour** : Phaedra 1974, Stratosfear / Exit, Moon Safari, Fairlight /
 Deux cases à cocher, à côté des tracks :
 - **Keep the tempo as it's set** : on garde le tempo réglé ; décocher pour que chaque morceau reçoive un tempo au hasard, entre 50 et 90.
 - **Keep the colour** : on garde la couleur réglée ; décocher pour qu'elle change d'un morceau à l'autre (Phaedra, Fairlight, etc.).
+- **Make a video (vertical, for posting)** : pour chaque morceau, un film vertical (1080 × 1920) est enregistré à côté du WAV, sous le nom `Vertical_<couleur>.mp4` (ou `.webm` selon le navigateur). On y voit le dérouleur, l'accord, la tonalité, le tempo et les cartes « Neighbour key » ou « A shared chord ». Chaque film prend une couleur de fond différente. Le son du film est le même que celui du WAV.
 
 Les fichiers vont dans **Recordings**, à côté du lanceur : les WAV (une heure par fichier, stéréo) et `reglages.txt` (couleur, graine et réglages au départ). Ne pas modifier les réglages ni mettre en pause pendant l'enregistrement.

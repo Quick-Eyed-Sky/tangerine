@@ -1,6 +1,7 @@
 """Bounded-memory, incremental PCM WAV recording for the local Tangerine copy."""
 from datetime import datetime
 import hashlib
+import re
 import json
 import os
 from pathlib import Path
@@ -93,6 +94,28 @@ class RecordingStore:
                 if s['part_frames'] >= int(s['rate'] * self.segment_seconds): self._close_part(s)
             s['sequence'] += 1; s['last_hash'] = digest
             return self.info(s)
+
+    def append_video(self, sid, sequence, data, name):
+        """A vertical film, in pieces, beside the WAV of the same recording. Piece 0 starts the file."""
+        if not data or len(data) > 2_000_000:
+            raise ValueError('Invalid video piece.')
+        if not isinstance(name, str) or not re.fullmatch(r'Vertical_[a-z]+\.(mp4|webm)', name):
+            raise ValueError('Invalid film name.')
+        with self.lock:
+            s = self.sessions[sid]
+            folder = self.folder / sid
+            if sequence == 0:
+                (folder / name).write_bytes(data)
+            elif sequence > 0:
+                if not (folder / name).exists():
+                    raise ValueError('Film out of order.')
+                with open(folder / name, 'ab') as handle:
+                    handle.write(data)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+            else:
+                raise ValueError('Film out of order.')
+            return {"name": name, "sequence": sequence}
 
     def stop(self, sid):
         with self.lock:

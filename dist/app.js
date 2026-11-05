@@ -1,4 +1,5 @@
 import { initStudio } from './studio.js';
+import { VerticalFilm, pickPalette } from './vertical.js';
 import { hashSeed, mulberry32 } from './rng.js';
 import { TangerineAudio, Graph, renderOffline, renderNotes, MAX_RENDER_MINUTES, encodeWav, LAYER_IDS, SOUNDS, DIVISIONS, DIVISION_LABEL, DEFAULT_LAYERS, DEFAULT_GLOBAL, ENVELOPE_LIMITS, KEEP_SECONDS, ECHO_MAX } from './audio.js?v=12';
 import { LAYERS, SEQ_IDS, HOLD_IDS } from './engine.js';
@@ -7,7 +8,7 @@ import { chordName, keyName, MODULATION_LABEL, METHOD_LABEL, KEY_NAMES, MODES, M
 
 const $ = (id) => document.getElementById(id);
 const storageKey = 'tangerine.setup.v2';
-const VERSION = '2.0.0';
+const VERSION = '2.1.0';
 
 // Slow change, made visible: a small marker on each Shape & Echo slider shows where that
 // setting is now. The factor is the audio's own (audio._drift), so the marker follows the sound.
@@ -906,7 +907,7 @@ async function finishRecording() {
 // kept, a new tempo and colour. Each track is a folder of its own, with its settings beside the WAV.
 let tracksRunning = false;
 let pieceStop = null;
-async function recordTracks(recorder, minutes, { intro = 0, outro = 0, tracks = 1, keepTempo = true, keepColour = true } = {}) {
+async function recordTracks(recorder, minutes, { intro = 0, outro = 0, tracks = 1, keepTempo = true, keepColour = true, makeVideo = false } = {}) {
   if (audio.recording) throw new Error('Stop the memory recording first.');
   await audio._ensure();
   await banked;
@@ -914,7 +915,7 @@ async function recordTracks(recorder, minutes, { intro = 0, outro = 0, tracks = 
   try {
     for (let track = 1; track <= tracks && tracksRunning; track++) {
       if (track > 1) await rerollTrack({ keepTempo, keepColour });
-      await recordTrack(recorder, minutes, { intro, outro, track, tracks });
+      await recordTrack(recorder, minutes, { intro, outro, track, tracks, makeVideo });
     }
   } finally {
     tracksRunning = false;
@@ -922,7 +923,7 @@ async function recordTracks(recorder, minutes, { intro = 0, outro = 0, tracks = 
 }
 
 // One track, from its first bar, until its length is reached (or the user stops).
-async function recordTrack(recorder, minutes, { intro, outro, track, tracks }) {
+async function recordTrack(recorder, minutes, { intro, outro, track, tracks, makeVideo = false }) {
   if (audio.playing) {
     await audio.pause();
     if (startedAt) elapsed += (performance.now() - startedAt) / 1000;
@@ -937,6 +938,9 @@ async function recordTrack(recorder, minutes, { intro, outro, track, tracks }) {
   const plan = piecePlan(minutes * 60, intro, outro);
   const ended = new Promise((resolve) => { pieceStop = resolve; recorder.onLimit = resolve; });
   await recorder.start({ audio, seed: audio.seed, beforePlay: true, limitSeconds: minutes * 60, settings: timedNote(minutes, plan, track, tracks) });
+  const palette = pickPalette();
+  const film = makeVideo ? new VerticalFilm({ audio, sid: recorder.session, palette, base: `Vertical_${palette.id}`, colourOf: (layer) => COLORS[layer] || palette.ink, frame: filmState }) : null;
+  if (film) await film.start();
   if (plan.intro) audio.setStage([plan.order[0]]);
   await toggle();
   stageTimer = setInterval(() => stagePiece(recorder, plan), 100);
@@ -944,11 +948,30 @@ async function recordTrack(recorder, minutes, { intro, outro, track, tracks }) {
   pieceStop = null;
   recorder.onLimit = null;
   stopStaging();
+  if (film) {
+    try { await film.stop(); } catch (error) { notify(`The film could not be saved: ${error.message}`); }
+  }
   if (audio.playing) {
     await audio.pause();
     startedAt = null;
     renderTransport();
   }
+}
+
+// What a film shows at this moment: the playback time, the notes, the chord marks and the cards.
+function filmState() {
+  const journey = $('journey');
+  const title = journey.querySelector('strong')?.textContent || '';
+  return {
+    now: audio.currentTime,
+    feed: audio.feed,
+    marks,
+    chord: $('chordName').textContent,
+    key: $('vineKey').textContent,
+    tempo: settings.global.bpm,
+    title,
+    body: journey.textContent.slice(title.length).trim(),
+  };
 }
 
 // A new track: a new seed and harmony (the Random button's draw), then a tempo and a colour unless kept.

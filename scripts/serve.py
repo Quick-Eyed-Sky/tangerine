@@ -280,6 +280,10 @@ def handler_for(root, identity, recordings):
                     if action == 'chunk' and kind == 'application/octet-stream':
                         sequence = int(urllib.parse.parse_qs(parts.query)['sequence'][0])
                         return self._json(200, recordings.append(sid, sequence, data))
+                    if action == 'video' and kind == 'application/octet-stream':
+                        query = urllib.parse.parse_qs(parts.query)
+                        sequence = int(query['sequence'][0])
+                        return self._json(200, recordings.append_video(sid, sequence, data, query['name'][0]))
                     if action == 'stop' and kind == 'application/json':
                         return self._json(200, recordings.stop(sid))
                 return self._json(404, {'error': 'Unknown recording action.'})
